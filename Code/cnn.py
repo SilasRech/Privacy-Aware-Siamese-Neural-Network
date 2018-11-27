@@ -3,7 +3,7 @@ from keras import backend as K
 from keras.models import Sequential
 from keras.layers import Dense, Flatten
 from keras.layers import Conv2D, MaxPooling2D, Lambda, Input
-from keras.layers import Dropout
+from keras.layers import Dropout, LSTM, Embedding
 from keras.layers.normalization import BatchNormalization
 from keras import optimizers
 from keras.models import Model
@@ -12,6 +12,7 @@ from parameter import parameters
 import tensorflow as tf
 import numpy as np
 import random
+
 
 cnn_df = parameters('cnn')
 path_model = cnn_df.iloc[0]['model']
@@ -22,7 +23,7 @@ accuracy_speaker = []
 epochs = 10
 
 
-def neural_network(x_eval, y_eval, x_train, y_train, loss, alpha, x_test=0, y_test=0, x_retest=0, y_retest=0, x_retrain=0, y_retrain=0):
+def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_retest, y_retest, x_retrain, y_retrain):
 
     # Clear Model
     tf.keras.backend.clear_session()
@@ -68,7 +69,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, alpha, x_test=0, y_te
         model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
                   batch_size=200,
                   epochs=50,
-                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), callbacks=[tensor_board])
+                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y))
         test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
         accuracy_siamese = compute_accuracy(te_y, test_predictions)
 
@@ -100,9 +101,9 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, alpha, x_test=0, y_te
         model_dense.summary()
         model_dense.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
         model_dense.fit(x_pred_train, y_train,
-                  batch_size=200,
-                  epochs=30,
-                  validation_data=(x_pred_eval, y_eval))
+                        batch_size=200,
+                        epochs=30,
+                        validation_data=(x_pred_eval, y_eval))
 
         acc = model_dense.evaluate(x=x_pred_test, y=y_test)
         acc_gender = acc[1]
@@ -156,6 +157,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, alpha, x_test=0, y_te
         input_shape = (32, 32, 1)
         learning_rate = 0.0002
         adam = optimizers.Adam(lr=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0, amsgrad=True)
+        sgd = optimizers.sgd()
 
         digits_indeces_train = [np.where(y_train == i)[0] for i in range(2)]
         digits_indeces_eval = [np.where(y_eval == i)[0] for i in range(2)]
@@ -170,34 +172,45 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, alpha, x_test=0, y_te
         y_eval = keras.utils.to_categorical(y_eval, classes)
         y_test = keras.utils.to_categorical(y_test, classes)
 
-        # network definition
-        network = create_whole_network(input_shape)
-
         input_a = Input(shape=input_shape)
         input_b = Input(shape=input_shape)
+
+        # network definition
+        network = create_whole_network(input_shape)
 
         processed_a = network(input_a)
         processed_b = network(input_b)
 
         distance = Lambda(euclidean_distance,
-                          output_shape=eucl_dist_output_shape)([processed_a, processed_b])
-        network.summary()
+                          output_shape=eucl_dist_output_shape, name='distance')([processed_a, processed_b])
 
-        model_whole = Model(input=[input_a, input_b], output=[processed_a, processed_b, distance])
-        # input_dense = keras.layers.concatenate([dense_processed_a, dense_processed_b])
+        network.summary()
+        dense = create_dense_network((1, 1, 512))
+        dense_a = dense(processed_a)
+        dense_b = dense(processed_b)
+        dense_a = Dense(2, activation='softmax')(dense_a)
+        output_1 = Flatten(name='output_1')(dense_a)
+        dense_b = Dense(2, activation='softmax')(dense_b)
+        output_2 = Flatten( name='output_2')(dense_b)
+
+        model_whole = Model(inputs=[input_a, input_b], outputs=[output_1, output_2, distance], name='CompositeModel')
 
         model_whole.summary()
         # train
 
-        model_whole.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
-        model_whole.fit([tr_pairs[:, 0], tr_pairs[:, 1]], y_train,
-                  batch_size=150,
-                  epochs=50,
-                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], y_eval))
+        alpha = 0.6
+        model_whole.compile(loss={'output_1': 'categorical_crossentropy', 'output_2': 'categorical_crossentropy', 'distance': contrastive_loss_small},
+                            loss_weights={'output_1': alpha, 'output_2': alpha, 'distance': 1},
+                            optimizer=adam,
+                            metrics={'output_1': 'accuracy', 'output_2': 'accuracy', 'distance': accuracy})
+        model_whole.fit([tr_pairs[:, 0], tr_pairs[:, 1]], [y_train, y_train, tr_y],shuffle=True,
+                  batch_size=200,
+                  epochs=35,
+                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], [y_eval,  y_eval,  eval_y]))
 
-        acc = model_whole.evaluate([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
+        acc = model_whole.evaluate([te_pairs[:, 0], te_pairs[:, 1]], [y_test,  y_test,  te_y], verbose=1)
 
-        acc_gender = acc[1]
+        acc_gender = acc[-1]
         print('test accuracy gender discrimination {0} %'.format(acc_gender))
 
         classes = 20
@@ -207,7 +220,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, alpha, x_test=0, y_te
             y_retest[k] = keras.utils.to_categorical(y_retest[k] % 20, classes)
             y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % 20, classes)
 
-        input_speaker = (1, 1, 256)
+        input_speaker = (1, 1, 512)
         model_dense_speaker = Sequential()
         model_dense_speaker.add(Flatten(input_shape=input_speaker))
         model_dense_speaker.add(Dense(1024, activation='relu', input_shape=input_speaker))
@@ -275,8 +288,7 @@ def reshape_gender(data):
 def euclidean_distance(vects):
     x, y = vects
     sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)
-    euclidean = K.sqrt(K.maximum(sum_square, K.epsilon()))
-    return euclidean
+    return K.sqrt(K.maximum(sum_square, K.epsilon()))
 
 def euclidean_distance_divided(x,y):
     sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)
@@ -320,10 +332,11 @@ def create_pairs_sim(x, digit_indices):
     '''
     pairs = []
     labels = []
-    n = min([len(digit_indices[d]) for d in range(2)]) - 1
     for d in range(2):
-        for i in range(n):
-            z1, z2 = digit_indices[d][i], digit_indices[d][i + 1]
+        for i in range(len(digit_indices[d])):
+            inc = random.randrange(0, 1)
+            dn = (d + inc) % 2
+            z1, z2 = digit_indices[d][i], digit_indices[dn][i]
             pairs += [[x[z1], x[z2]]]
             labels += [1]
     return np.array(pairs), np.array(labels)
@@ -365,7 +378,6 @@ def create_base_network(input_shape):
     x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = Dropout(0.25)(x)
-    x = Flatten()(x)
 
     return Model(input, x)
 
@@ -376,43 +388,53 @@ def create_whole_network(input_shape):
 
     # Conv part
     x = BatchNormalization()(input)
-    x = Conv2D(32, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Conv2D(32, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(32, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(64, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+    #x = BatchNormalization()(x)
+    x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
-    x = Conv2D(64, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(64, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(64, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-
+    #x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = BatchNormalization()(x)
+    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = BatchNormalization()(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
 
     x = BatchNormalization()(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = BatchNormalization()(x)
+    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.4)(x)
 
     x = BatchNormalization()(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
+    #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
-    x = Flatten()(x)
+    x = Dropout(0.4)(x)
 
-    #Dense part
-    x = Dense(1024, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    x = Dense(2, activation='softmax')(x)
+    x = BatchNormalization()(x)
+    #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = BatchNormalization()(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.4)(x)
 
     return Model(input, x)
 
@@ -421,57 +443,52 @@ def create_dense_network(input_shape):
     '''
     Base network to be shared (eq. to feature extraction).
     '''
+    input_ = Input(shape=input_shape)
 
-    input = Input(shape=input_shape)
+    x = Dense(1024, activation='relu')(input_)
+    x = BatchNormalization()(x)
+    x = Dropout(0.6)(x)
 
-    x = Dense(1024, activation='relu')(input)
-    x = Dropout(0.5)(x)
-    x = Dense(2, activation='softmax')(x)
+    return Model(input_, x, name='Dense')
 
-    return Model(input, x)
 
 def compute_accuracy(y_true, y_pred):
-    '''
-    Compute classification accuracy with a fixed threshold on distances.
+    '''Compute classification accuracy with a fixed threshold on distances.
     '''
     pred = y_pred.ravel() < 0.5
     return np.mean(pred == y_true)
 
 
 def accuracy(y_true, y_pred):
+    '''Compute classification accuracy with a fixed threshold on distances.
     '''
-    Compute classification accuracy with a fixed threshold on distances.
-    '''
+    return K.mean(K.equal(y_true, K.cast(y_pred < 0.5, y_true.dtype)))
+
+
+def accuracy_triple(y_true, y_pred):
     return K.mean(K.equal(y_true, K.cast(y_pred < 0.5, y_true.dtype)))
 
 
 def contrastive_loss(y_pred, y_true):
     margin = 1
-    return K.mean(y_true * K.square(y_pred) + (1 - y_true) * K.square(K.maximum(float(0), margin - y_pred)))
+    sqaure_pred = K.square(y_pred)
+    margin_square = K.square(K.maximum(margin - y_pred, 0))
+
+    return K.mean(y_true * sqaure_pred + (1 - y_true) * margin_square)
 
 
-def triple_loss_through(vects):
-    #a, b, c, d = vects
-    a, b = vects
+def contrastive_loss_small(y_pred, y_true):
+    return K.mean(K.square(y_pred))
 
-    return [a, b]
 
 def triple_loss(y_true, y_label):
-    #a, b, c, d = y_true
-    #alpha = 1
-    #loss_a = keras.losses.categorical_crossentropy(y_label, a)
-    #loss_b = keras.losses.categorical_crossentropy(y_label, b)
-    #distance = euclidean_distance_divided(c, d)
-    #contrastive = contrastive_loss(distance, y_label)
-
-    #return K.square(contrastive) + alpha*(loss_a + loss_b)
-
-    a, b = y_true
+    a, b, c = y_true
     alpha = 1
     loss_a = keras.losses.categorical_crossentropy(y_label, a)
     loss_b = keras.losses.categorical_crossentropy(y_label, b)
+    contrastive = contrastive_loss(c, y_label)
 
-    return alpha*(loss_a + loss_b)
+    return K.square(contrastive) + alpha*(loss_a + loss_b)
 
 
 class AccuracyHistory(keras.callbacks.Callback):

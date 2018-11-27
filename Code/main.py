@@ -15,7 +15,6 @@ if cnn_list.iloc[0]['classifier'] == 'gender':
     #np.save('C:\\Users\\srech\\Desktop\\log\\InputData\\test_labels.npy', test_labels)
     test_data = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_data.npy')
     test_labels = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_labels.npy')
-    #test_data, test_labels = 0,0
     retest_data = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_data.json.npy')
     retest_labels = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_labels.json.npy')
     retrain_data = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_data.json.npy')
@@ -31,6 +30,6 @@ else:
     test_labels = 0
 
 
-scores, accuracy = neural_network(x_eval=eval_data, y_eval=eval_labels, x_train=train_data, y_train=train_labels, loss=2, alpha=1,
-                        x_test=test_data, y_test=test_labels, y_retest =retest_labels, y_retrain=retrain_labels ,x_retrain=retrain_data, x_retest=retest_data)
+scores, accuracy = neural_network(x_eval=eval_data, y_eval=eval_labels, x_train=train_data, y_train=train_labels, loss=1,
+                        x_test=test_data, y_test=test_labels, y_retest=retest_labels, y_retrain=retrain_labels ,x_retrain=retrain_data, x_retest=retest_data)
 
