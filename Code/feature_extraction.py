@@ -37,7 +37,7 @@ def feature_extraction(audiofile):
 
     elif name == "MEL":
 
-        one_feature = fs.logfbank(audiofile, winlen=winlen, samplerate=rate, winstep=winstep, nfilt=96, nfft=512,
+        one_feature = fs.logfbank(audiofile, winlen=winlen, samplerate=rate, winstep=winstep, nfilt=64, nfft=512,
                                   lowfreq=0, highfreq=None, preemph=0.97)
 
         num_rows = np.size(one_feature, 0) - 1

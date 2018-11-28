@@ -117,7 +117,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
             y_retest[k] = keras.utils.to_categorical(y_retest[k] % classes, classes)
             y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % classes, classes)
 
-        input_speaker = (1, 1, 256)
+        input_speaker = (1, 1, 512)
         model_dense_speaker = Sequential()
         model_dense_speaker.add(Flatten(input_shape=input_speaker))
         model_dense_speaker.add(Dense(1024, activation='relu', input_shape=input_speaker))
@@ -198,14 +198,14 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model_whole.summary()
         # train
 
-        alpha = 0.6
-        model_whole.compile(loss={'output_1': 'categorical_crossentropy', 'output_2': 'categorical_crossentropy', 'distance': contrastive_loss_small},
-                            loss_weights={'output_1': alpha, 'output_2': alpha, 'distance': 1},
+        alpha = 0.1
+        model_whole.compile(loss={'output_1': 'categorical_crossentropy', 'output_2': 'categorical_crossentropy', 'distance': contrastive_loss},
+                            loss_weights={'output_1': alpha, 'output_2': alpha, 'distance': 3},
                             optimizer=adam,
                             metrics={'output_1': 'accuracy', 'output_2': 'accuracy', 'distance': accuracy})
         model_whole.fit([tr_pairs[:, 0], tr_pairs[:, 1]], [y_train, y_train, tr_y],shuffle=True,
                   batch_size=200,
-                  epochs=35,
+                  epochs=100,
                   validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], [y_eval,  y_eval,  eval_y]))
 
         acc = model_whole.evaluate([te_pairs[:, 0], te_pairs[:, 1]], [y_test,  y_test,  te_y], verbose=1)
@@ -346,38 +346,39 @@ def create_base_network(input_shape):
     '''
     input = Input(shape=input_shape)
 
-    x = BatchNormalization()(input)
-    x = Conv2D(32, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Conv2D(32, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(32, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(input)
+    x = Conv2D(64, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+    #x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(32, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
-    x = BatchNormalization()(x)
-    x = Conv2D(64, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(64, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(64, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(64, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
-    x = BatchNormalization()(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = Dropout(0.25)(x)
 
-    x = BatchNormalization()(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = Dropout(0.25)(x)
 
-    x = BatchNormalization()(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(256, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = Dropout(0.25)(x)
+    x = Flatten()(x)
 
     return Model(input, x)
 
@@ -388,52 +389,36 @@ def create_whole_network(input_shape):
 
     # Conv part
     x = BatchNormalization()(input)
-    #x = Conv2D(64, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = BatchNormalization()(x)
+    x = Conv2D(64, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
+    #x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
+    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     #x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = BatchNormalization()(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
+    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     #x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = BatchNormalization()(x)
-    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = Dropout(0.4)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
     #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = Dropout(0.4)(x)
 
     x = BatchNormalization()(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = BatchNormalization()(x)
-    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = BatchNormalization()(x)
     x = Dropout(0.4)(x)
 
     return Model(input, x)
@@ -469,15 +454,12 @@ def accuracy_triple(y_true, y_pred):
     return K.mean(K.equal(y_true, K.cast(y_pred < 0.5, y_true.dtype)))
 
 
-def contrastive_loss(y_pred, y_true):
-    margin = 1
-    sqaure_pred = K.square(y_pred)
-    margin_square = K.square(K.maximum(margin - y_pred, 0))
-
-    return K.mean(y_true * sqaure_pred + (1 - y_true) * margin_square)
+def contrastive_loss(y_true, y_pred):
+    margin = float(1)
+    return K.mean(y_true * K.square(y_pred) + (1 - y_true) * K.square(K.maximum(float(0), margin - y_pred)))
 
 
-def contrastive_loss_small(y_pred, y_true):
+def contrastive_loss_small(y_true, y_pred):
     return K.mean(K.square(y_pred))
 
 
