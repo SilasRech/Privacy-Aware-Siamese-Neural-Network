@@ -19,6 +19,7 @@ path_model = cnn_df.iloc[0]['model']
 path_tensorboard = cnn_df.iloc[0]['tensorboard']
 kernel1 = (cnn_df.iloc[0]['kernel1'], cnn_df.iloc[0]['kernel1'])
 kernel2 = (cnn_df.iloc[0]['kernel2'], cnn_df.iloc[0]['kernel2'])
+number_speaker = cnn_df.iloc[0]['number_speaker']
 accuracy_speaker = []
 epochs = 10
 
@@ -72,7 +73,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         # Training phase
         model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy])
         model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
-                  batch_size=200,
+                  batch_size=150,
                   epochs=50,
                   validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=True)
         test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
@@ -115,10 +116,8 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         print('test accuracy gender discrimination {0} %'.format(acc_gender))
 
         # Build DNN for speaker identification
-        classes = 20
-        #y_train = keras.utils.to_categorical(y_train, classes)
-        #y_eval = keras.utils.to_categorical(y_eval, classes)
-        for k in range(20):
+        classes = number_speaker
+        for k in range(int(420/number_speaker)):
             y_retest[k] = keras.utils.to_categorical(y_retest[k] % classes, classes)
             y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % classes, classes)
 
@@ -127,24 +126,15 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model_dense_speaker.add(Flatten(input_shape=input_speaker))
         model_dense_speaker.add(Dense(1024, activation='relu', input_shape=input_speaker))
         model_dense_speaker.add(Dropout(0.5))
-        model_dense_speaker.add(Dense(20, activation='softmax'))
-
-        #x_input_train = model_new.predict(x_train)
-        #x_input_eval = model_new.predict(x_eval)
+        model_dense_speaker.add(Dense(number_speaker, activation='softmax'))
 
         adam = optimizers.Adam(lr=0.0002, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0, amsgrad=True)
 
         model_dense_speaker.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
 
         # Train DNN for speaker identification
-        #model_dense_speaker.fit(x=x_input_train, y=y_train, shuffle=True, epochs=cnn_df.iloc[0]['epochs'],
-         #                       batch_size=cnn_df.iloc[0]['batch_size'],
-          #                      validation_data=(x_input_eval, y_eval), callbacks=[tensor_board, history, stopper])
-
-        #accuracy_1 = list(history.acc)
-        #accuracy_speaker.append(accuracy_1[-1])
         accuracy_speaker = []
-        for k in range(20):
+        for k in range(int(420/number_speaker)):
             x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
 
@@ -156,21 +146,32 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
             accuracy_1 = list(history.acc)
             accuracy_speaker.append(accuracy_1[-1])
 
-        acc_speaker = sum(accuracy_speaker) / 20
+        acc_speaker = sum(accuracy_speaker) / int(400/number_speaker)
 
     else:
+        # So row 0 are the males, and row 1 are the females
         digits_indeces_train = [np.where(y_train == i)[0] for i in range(2)]
         digits_indeces_eval = [np.where(y_eval == i)[0] for i in range(2)]
         digits_indeces_test = [np.where(y_test == i)[0] for i in range(2)]
 
-        tr_pairs, tr_y = create_pairs_ratio(x_train, digits_indeces_train, 0.8)
-        eval_pairs, eval_y = create_pairs_ratio(x_eval, digits_indeces_eval, 0.49)
-        te_pairs, te_y = create_pairs_ratio(x_test, digits_indeces_test, 0.49)
+        tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 1, 1)
+        eval_pairs, eval_y, eval_y1, eval_y2 = create_pairs_ratio(x_eval, digits_indeces_eval, 1, 1)
+        te_pairs, te_y, te_y1, te_y2 = create_pairs_ratio(x_test, digits_indeces_test, 1, 1)
 
+        # Transform into hot-encoded vectors
         classes = 2
+        tr_y1 = keras.utils.to_categorical(tr_y1, classes)
+        eval_y1 = keras.utils.to_categorical(eval_y1, classes)
+        te_y1 = keras.utils.to_categorical(te_y1, classes)
+
+        tr_y2 = keras.utils.to_categorical(tr_y2, classes)
+        eval_y2 = keras.utils.to_categorical(eval_y2, classes)
+        te_y2 = keras.utils.to_categorical(te_y2, classes)
+
         y_train = keras.utils.to_categorical(y_train, classes)
         y_eval = keras.utils.to_categorical(y_eval, classes)
         y_test = keras.utils.to_categorical(y_test, classes)
+
 
         input_a = Input(shape=input_shape)
         input_b = Input(shape=input_shape)
@@ -198,17 +199,17 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model_whole.summary()
         # train
 
-        alpha = 0.7
+        alpha = 0.1
         model_whole.compile(loss={'output_1': 'categorical_crossentropy', 'output_2': 'categorical_crossentropy', 'distance': contrastive_loss},
-                            loss_weights={'output_1': alpha, 'output_2': alpha, 'distance': 1},
+                            loss_weights={'output_1': alpha, 'output_2': alpha, 'distance': 700},
                             optimizer=adam,
                             metrics={'output_1': 'accuracy', 'output_2': 'accuracy', 'distance': accuracy})
-        model_whole.fit([tr_pairs[:, 0], tr_pairs[:, 1]], [y_train, y_train, tr_y],shuffle=True,
-                  batch_size=200,
-                  epochs=75,
-                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], [y_eval,  y_eval,  eval_y]))
+        model_whole.fit([tr_pairs[:, 0], tr_pairs[:, 1]], [tr_y1, tr_y2, tr_y], shuffle=True,
+                  batch_size=150,
+                  epochs=50,
+                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], [eval_y1,  eval_y2,  eval_y]))
 
-        acc_siamese_training = model_whole.evaluate([te_pairs[:, 0], te_pairs[:, 1]], [y_test,  y_test,  te_y], verbose=1)
+        acc_siamese_training = model_whole.evaluate([te_pairs[:, 0], te_pairs[:, 1]], [te_y1,  te_y2,  te_y], verbose=1)
 
         print('--- accuracies for composite loss functions {0} %---'.format(acc_siamese_training))
 
@@ -237,12 +238,10 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         acc_gender = acc[1]
         print('test accuracy gender discrimination {0} %'.format(acc_gender))
 
-        classes = 20
-        # y_train = keras.utils.to_categorical(y_train, classes)
-        # y_eval = keras.utils.to_categorical(y_eval, classes)
-        for k in range(20):
-            y_retest[k] = keras.utils.to_categorical(y_retest[k] % 20, classes)
-            y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % 20, classes)
+        classes = number_speaker
+        for k in range(int(round(420/number_speaker))):
+            y_retest[k] = keras.utils.to_categorical(y_retest[k] % classes, classes)
+            y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % classes, classes)
 
         accuracy_speaker = []
         input_speaker = (1, 1, 512)
@@ -250,30 +249,17 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model_dense_speaker.add(Flatten(input_shape=input_speaker))
         model_dense_speaker.add(Dense(1024, activation='relu', input_shape=input_speaker))
         model_dense_speaker.add(Dropout(0.5))
-        model_dense_speaker.add(Dense(20, activation='softmax'))
-
-        # x_input_train = model_new.predict(x_train)
-        # x_input_train = reshape_re(x_input_train)
-        # x_input_eval = model_new.predict(x_eval)
-        # x_input_eval = reshape_re(x_input_eval)
+        model_dense_speaker.add(Dense(number_speaker, activation='softmax'))
 
         learning_rate = 0.0002
         adam = optimizers.Adam(lr=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0, amsgrad=True)
 
         model_dense_speaker.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
 
-        # model_dense_speaker.fit(x=x_input_train, y=y_train, shuffle=True, epochs=cnn_df.iloc[0]['epochs'],
-        #                        batch_size=cnn_df.iloc[0]['batch_size'],
-        #                        validation_data=(x_input_eval, y_eval), callbacks=[tensor_board, history, stopper])
-
-        # accuracy_1 = list(history.acc)
-        # accuracy_speaker.append(accuracy_1[-1])
-
-        for k in range(20):
+        for k in range(int(round(420/number_speaker))):
             x_input_train = model_new.predict(x_retrain[k])
-            # x_input_train = reshape_re(x_input_train)
+
             x_input_eval = model_new.predict(x_retest[k])
-            # x_input_eval = reshape_re(x_input_eval)
 
             reset_weights(model_dense_speaker)
             model_dense_speaker.fit(x=x_input_train, y=y_retrain[k], shuffle=True, epochs=100,
@@ -283,7 +269,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
             accuracy_1 = list(history.acc)
             accuracy_speaker.append(accuracy_1[-1])
 
-        acc_speaker = sum(accuracy_speaker) / 20
+        acc_speaker = sum(accuracy_speaker) / int(420/number_speaker)
 
     return acc_speaker, acc_gender
 
@@ -366,11 +352,13 @@ def create_pairs_sim(x, digit_indices):
             labels += [1]
     return np.array(pairs), np.array(labels)
 
-def create_pairs_ratio(x, digit_indices, ratio):
+
+def create_pairs_ratio(x, digit_indices, ratio, times):
     """
     :param x: input data
     :param digits_indices: labeled data
     :param ratio: ratio for similiar pairs in percentage
+    :param times: total number of times the data is repeatedly chosen
     :return: pairs, new labels
     """
 
@@ -385,52 +373,57 @@ def create_pairs_ratio(x, digit_indices, ratio):
 
     n = min([len(digit_indices[d]) for d in range(2)]) - 1
 
-    for i in range(len_male):
-        # Similiar
-        random_sim = random.randint(0, n)
-        if random_sim == i:
+    for m in range(times):
+        for i in range(len_male):
+            # Similiar
             random_sim = random.randint(0, n)
-        z1 = digit_indices[0][i]
-        z2 = digit_indices[0][random_sim]
-        pairs_sim += [[x[z1], x[z2], 1]]
+            if random_sim == i:
+                random_sim = random.randint(0, n)
+            z1 = digit_indices[0][i]
+            z2 = digit_indices[0][random_sim]
+            pairs_sim += [[x[z1], x[z2], 1, 0, 0]]
 
-        # Unsimiliar
-        random_unsim = random.randint(0, n)
-        if random_unsim == i:
+            # Unsimiliar
             random_unsim = random.randint(0, n)
-        z1 = digit_indices[0][i]
-        z2 = digit_indices[1][random_unsim]
-        pairs_dif += [[x[z1], x[z2], 0]]
+            if random_unsim == i:
+                random_unsim = random.randint(0, n)
+            z1 = digit_indices[0][i]
+            z2 = digit_indices[1][random_unsim]
+            pairs_dif += [[x[z1], x[z2], 0, 0, 1 ]]
 
-    for i in range(len_female):
-        # Similiar
-        random_sim = random.randint(0, n)
-        if random_sim == i:
+        for i in range(len_female):
+            # Similiar
             random_sim = random.randint(0, n)
-        z1 = digit_indices[1][i]
-        z2 = digit_indices[1][random_sim]
-        pairs_sim += [[x[z1], x[z2], 1]]
+            if random_sim == i:
+                random_sim = random.randint(0, n)
+            z1 = digit_indices[1][i]
+            z2 = digit_indices[1][random_sim]
+            pairs_sim += [[x[z1], x[z2], 1, 1, 1]]
 
-        # Unsimiliar
-        random_unsim = random.randint(0, n)
-        if random_unsim == i:
+            # Unsimiliar
             random_unsim = random.randint(0, n)
-        z1 = digit_indices[1][i]
-        z2 = digit_indices[0][random_unsim]
-        pairs_dif += [[x[z1], x[z2], 0]]
+            if random_unsim == i:
+                random_unsim = random.randint(0, n)
+            z1 = digit_indices[1][i]
+            z2 = digit_indices[0][random_unsim]
+            pairs_dif += [[x[z1], x[z2], 0, 1, 0]]
 
     n = len(pairs_sim)
     pairs_sim = random.sample(pairs_sim, int(round(n*ratio)))
     pairs_dif = random.sample(pairs_dif, int(round(n*(1-ratio))))
     pairs = pairs_sim + pairs_dif
 
+    new_labels_1 = []
+    new_labels_2 = []
     labels = []
     pairs_return = []
     for i in range(len(pairs)):
         labels.append(pairs[i][2])
         pairs_return.append(pairs[i][0:2])
+        new_labels_1.append(pairs[i][3])
+        new_labels_2.append(pairs[i][4])
 
-    return np.array(pairs_return), np.array(labels)
+    return np.array(pairs_return), np.array(labels), np.array(new_labels_1), np.array(new_labels_2)
 
 
 def create_base_network(input_shape):
@@ -438,38 +431,39 @@ def create_base_network(input_shape):
     '''
     input = Input(shape=input_shape)
 
-    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(input)
+    x = BatchNormalization()(input)
     x = Conv2D(64, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
-    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = BatchNormalization()(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
-    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = BatchNormalization()(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.2)(x)
 
-    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.2)(x)
 
-    x = BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True, beta_initializer='zeros', gamma_initializer='ones', moving_mean_initializer='zeros', moving_variance_initializer='ones', beta_regularizer=None, gamma_regularizer=None, beta_constraint=None, gamma_constraint=None)(x)
+    x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.3)(x)
+
     x = Flatten()(x)
 
     return Model(input, x)
@@ -497,21 +491,21 @@ def create_whole_network(input_shape):
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.2)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.2)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.3)(x)
 
     return Model(input, x)
 

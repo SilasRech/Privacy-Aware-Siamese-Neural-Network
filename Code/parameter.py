@@ -27,13 +27,15 @@ def parameters(mode):
 
     # Choose Gender or Speaker // 0 = Gender // 1 = Speaker
 
-    neural_network = neural_network_list[0]
+    neural_network = neural_network_list[1]
 
 
     feature_mode = feature_mode_list[0]
     subframe_shift = subframe_shift_list[1]
     subframe_length = subframe_length_list[1]
     number_features = number_features_list[1]
+
+    number_speakers = 10
 
     if neural_network == 'gender':
         dropout_rate = dropout_rate_list[2]
@@ -90,13 +92,14 @@ def parameters(mode):
                               'audiofile': [filename_audiofile], 'training': [filename_training],
                               'eval': [filename_eval], 'meta': [filename_meta], 'tensor': [path_tensorboard],
                               'config': [path_config], 'observer': [filename_observer], 'features': [number_features],
-                              'testing': [filename_testing], 'retraining': [filename_retraining], 'retesting':[filename_retesting]})
+                              'testing': [filename_testing], 'retraining': [filename_retraining], 'retesting':[filename_retesting],
+                              'number_speakers': [number_speakers]})
     elif mode == 'cnn':
         df_return = pd.DataFrame({'index': [number_bibs], 'features': [number_features], 'dropout': [dropout_rate],
                             'kernel1': [ks1], 'kernel2': [ks2], 'filter1': [num_fil_1_layer],
                             'filter2': [num_fil_2_layer], 'dense': [dense_layer], 'batch_size': [batch_size], 'epochs': [epochs],
                             'save_path': [filename_save], 'classifier': [neural_network], 'tensorboard': [path_tensorboard],
-                            'model': [path_model]})
+                            'model': [path_model], 'number_speaker': [number_speakers]})
     elif mode == 'mfcc':
         df_return = pd.DataFrame({'shift': [subframe_shift], 'length': [subframe_length], 'mode': [feature_mode], 'features': [number_features]})
     else:

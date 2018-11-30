@@ -10,22 +10,23 @@ eval_data, eval_labels, train_data, train_labels = database('train', 1)
 
 
 if cnn_list.iloc[0]['classifier'] == 'gender':
-    #test_data, test_labels = database('test',1)
-    #np.save('C:\\Users\\srech\\Desktop\\log\\InputData\\test_data.npy', test_data)
-    #np.save('C:\\Users\\srech\\Desktop\\log\\InputData\\test_labels.npy', test_labels)
-    test_data = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_data.npy')
-    test_labels = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_labels.npy')
-    retest_data = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_data.json.npy')
-    retest_labels = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_labels.json.npy')
-    retrain_data = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_data.json.npy')
-    retrain_labels = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_labels.json.npy')
+    #test_data, test_labels = database('test', 0)
+    #np.save('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_data_10.json.npy', test_data)
+    #np.save('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_label_10.json.npy', test_labels)
+
+    test_data = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_data_10.json.npy')
+    test_labels = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_label_10.json.npy')
+    retest_data = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_data_10.json.npy')
+    retest_labels = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_labels_10.json.npy')
+    retrain_data = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_data_10.json.npy')
+    retrain_labels = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_labels_10.json.npy')
 else:
 
-    #retest_data, retest_labels, retrain_data, retrain_labels = database('test', 0)
-    #np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_data.json.npy', arr=retest_data)
-    #np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_labels.json.npy', arr=retest_labels)
-    #np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_data.json.npy', arr=retrain_data)
-    #np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_labels.json.npy', arr=retrain_labels )
+    retest_data, retest_labels, retrain_data, retrain_labels = database('test', 0)
+    np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_data_10.json.npy', arr=retest_data)
+    np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_labels_10.json.npy', arr=retest_labels)
+    np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_data_10.json.npy', arr=retrain_data)
+    np.save('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retrain_labels_10.json.npy', arr=retrain_labels )
     test_data = 0
     test_labels = 0
 

@@ -1,5 +1,5 @@
 """
-Create Database for Convolutional Neural Network using Pandas
+Create Database for Neural Network using Pandas
 """
 import numpy as np
 import pandas as pd
@@ -7,6 +7,8 @@ from parameter import parameters
 from feature_extraction import feature_extraction
 db_df = parameters('database')
 features = db_df.iloc[0]['features']
+
+number_speakers = db_df.iloc[0]['number_speakers']
 
 def database(mode, saved):
     """
@@ -50,8 +52,8 @@ def database(mode, saved):
         male_speaker = pd.DataFrame({'sample_length': [length_speaker_m], 'index_list': [male_indeces[10*k]]})
         male_speaker_list = pd.concat([male_speaker_list, male_speaker], sort=False)
 
-    female_list = list(female_speaker_list.nlargest(10, 'sample_length').index_list)
-    male_list = list(male_speaker_list.nlargest(10, 'sample_length').index_list)
+    female_list = list(female_speaker_list.nlargest(20, 'sample_length').index_list)
+    male_list = list(male_speaker_list.nlargest(20, 'sample_length').index_list)
 
     for i in range(10):
         test_f.append([meta.iloc[female_list[i]]])
@@ -159,10 +161,10 @@ def database(mode, saved):
                     fs.write(df_json)
 
             elif db_df.neural_network.item() == 'speaker':
-                for m in range(400):
-
+                test_list = list(meta.index[0:4200:10])
+                for m in range(420):
                     print(m)
-                    testing = extract_feature(m, meta, test_list[m][0], filename_sig)
+                    testing = extract_feature(m, meta, test_list[m], filename_sig)
                     # Split into re-training and re-testing data
                     retest, retrain = np.split(testing, [int(.3*len(testing))])
 
@@ -222,34 +224,38 @@ def database(mode, saved):
 
             names_list_test = np.asarray(names_list_test)
 
-            for k in range(1, 21):
-                index_ = [i for i, x in enumerate(names_list_test) if x == k*20]
+            for k in range(1, int(round(420/number_speakers))+1):
+                index_ = [i for i, x in enumerate(names_list_test) if x == k*number_speakers]
                 last_index = index_[-1]
                 data_one = retesting.iloc[old_index:last_index][:]
                 label_one = test_label.iloc[old_index:last_index][:]
+
                 test_data = reshape_data(data_one, features, label_one)
                 test_labels = speaker_labels(label_one, features)
+
                 test_labels_list.append(test_labels)
                 test_data_list.append(test_data)
                 old_index = index_[-1]+1
 
-
-            names_list_test = []
+            names_list_train = []
             for i in range(len(train_label) - len(train_label) % features):
                 if i == 0:
-                    num_speaker_test = 1
+                    num_speaker_train = 1
                 elif train_label[i] != train_label[i-1]:
-                    num_speaker_test += 1
-                names_list_test.append(num_speaker_test)
+                    num_speaker_train += 1
+                names_list_train.append(num_speaker_train)
 
-            names_list_test = np.asarray(names_list_test)
+            names_list_train = np.asarray(names_list_train)
             old_index = 0
-            for k in range(1, 21):
-
-                index_ = [i for i, x in enumerate(names_list_test) if x == k*20]
+            for k in range(1, int(round(420/number_speakers))+1):
+                index_ = [i for i, x in enumerate(names_list_train) if x == k*number_speakers]
                 last_index = index_[-1]
-                train_data = reshape_data(retraining.iloc[old_index:last_index][:], features, train_label.iloc[old_index:last_index][:])
-                train_labels = speaker_labels(train_label.iloc[old_index:last_index][:], features)
+                data_one = retraining.iloc[old_index:last_index][:]
+                label_one = train_label.iloc[old_index:last_index][:]
+
+                train_data = reshape_data(data_one, features, label_one)
+                train_labels = speaker_labels(label_one, features)
+
                 train_labels_list.append(train_labels)
                 train_data_list.append(train_data)
                 old_index = index_[-1]+1
@@ -272,7 +278,7 @@ def speaker_labels(label, features):
 
     label_list = []
     label.index = range(len(label.index))
-    label = label % 20
+    label = label % int(round(number_speakers/2))
 
     for m in range(max(label)+1):
         index_ = [i for i, x in enumerate(label) if x == m]
@@ -303,7 +309,7 @@ def reshape_data(data, features, label):
         names_list = label.loc[:, 'labeled']
     else:
         names_list = label
-        names_list = names_list % 20
+        names_list = names_list % 10
 
     for m in range(max(names_list)+1):
         index_ = [i for i, x in enumerate(names_list) if x == m]
@@ -324,18 +330,7 @@ def reshape_data(data, features, label):
         else:
             data_con = np.concatenate((data_con, data_3d))
 
-    test_all =np.asarray(data.iloc[160:192, 1:33])
-    #test_before = data_con[5]
-
-
     data_imaged = np.reshape(data_con, (-1, features, features, 1))
-    #data_imaged = data_con
-
-    #test_after = np.zeros((32,32))
-    #for i in range(32):
-        #for m  in range(32):
-            #test_after[i,m] = data_imaged[5, i, m]
-
     return data_imaged
 
 
@@ -351,6 +346,8 @@ def gender_labels(label, features):
     label.index = range(len(label.index))
     label_names = label.loc[:, 'labeled']
     label_gender = label.loc[:, 'gender']
+
+    test = range(max(label_names))
 
     for m in range(max(label_names)+1):
         index_ = [i for i, x in enumerate(label_names) if x == m]
