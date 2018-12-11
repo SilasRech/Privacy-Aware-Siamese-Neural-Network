@@ -12,7 +12,12 @@ from parameter import parameters
 import tensorflow as tf
 import numpy as np
 import random
-
+import pandas as pd
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from ggplot import *
+import time
+import sklearn.preprocessing as pre
 
 cnn_df = parameters('cnn')
 path_model = cnn_df.iloc[0]['model']
@@ -29,7 +34,7 @@ stopper = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.03, pati
                                         baseline=None)
 
 
-def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_retest, y_retest, x_retrain, y_retrain):
+def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_retest, y_retest, x_retrain, y_retrain, utterance = False):
 
     # Clear Model
     tf.keras.backend.clear_session()
@@ -48,10 +53,46 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
 
 
         # Preate Pairs
-        tr_pairs, tr_y = create_pairs(x_train, digits_indeces_train)
-        eval_pairs, eval_y = create_pairs(x_eval, digits_indeces_eval)
-        te_pairs, te_y = create_pairs(x_test, digits_indeces_test)
+        tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 0.5, 1)
+        eval_pairs, eval_y, eval_y1, eval_y2 = create_pairs_ratio(x_eval, digits_indeces_eval, 0.5, 1)
+        te_pairs, te_y, te_y1, te_y2 = create_pairs_ratio(x_test, digits_indeces_test, 0.5, 1)
 
+        flattened_x = x_test.reshape(x_test.shape[0], -1)
+        feat_cols = ['feature' + str(i) for i in range(flattened_x.shape[1])]
+
+        df_before = pd.DataFrame(flattened_x, columns=feat_cols)
+        df_before['label'] = y_test
+        df_before['label'] = df_before['label'].apply(lambda i: str(i))
+
+        pca_before = PCA(n_components=50)
+        pca_result = pca_before.fit_transform(df_before[feat_cols].values)
+
+        for i in range(50):
+            df_before['pca{0}'.format(i)] = pca_result[:, i]
+
+        print('Explained variation per principal component: {}'.format(pca_before.explained_variance_ratio_))
+
+        rndperm = np.random.permutation(df_before.shape[0])
+
+        #data = ggplot(aes(x='pca0', y='pca1', color='label'), data=df_before.loc[rndperm[:3000], :],) + geom_point(size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
+        #print(data)
+
+        n_sne = 3000
+
+        time_start = time.time()
+        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        tsne_results = tsne.fit_transform(df_before.loc[rndperm[:n_sne], feat_cols].values)
+
+        print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
+
+        df_tsne = df_before.loc[rndperm[:n_sne], :].copy()
+        df_tsne['x-tsne'] = tsne_results[:, 0]
+        df_tsne['y-tsne'] = tsne_results[:, 1]
+
+        chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
+                     + geom_point(size=75, alpha=0.8) \
+                     + ggtitle("tSNE dimensions colored by digit")
+        print(chart_tsne)
         # Build Basenetwork (Convolutional Part)
         base_network = create_base_network(input_shape)
 
@@ -74,7 +115,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy])
         model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
                   batch_size=150,
-                  epochs=50,
+                  epochs=100,
                   validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=True)
         test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
         accuracy_siamese = compute_accuracy(te_y, test_predictions)
@@ -89,6 +130,45 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         x_pred_train = model_new.predict(x_train)
         x_pred_eval = model_new.predict(x_eval)
         x_pred_test = model_new.predict(x_test)
+
+        #DISPLAY THE DATA AFTER SIAMESE
+        flattened_x_pred = x_test.reshape(x_pred_test.shape[0], -1)
+
+        feat_cols = ['feature' + str(i) for i in range(flattened_x_pred.shape[1])]
+
+        df_after = pd.DataFrame(flattened_x_pred, columns=feat_cols)
+        df_after['label'] = y_test
+        df_after['label'] = df_after['label'].apply(lambda i: str(i))
+
+        rndperm = np.random.permutation(df_after.shape[0])
+
+        pca_after = PCA(n_components=50)
+        pca_result = pca_after.fit_transform(df_after[feat_cols].values)
+
+        for i in range(50):
+            df_after['pca{0}'.format(i)] = pca_result[:, i]
+
+        print('Explained variation per principal component: {}'.format(pca_after.explained_variance_ratio_))
+
+        #chart_after = ggplot(df.loc[rndperm[:3000], :], aes(x='pca-one', y='pca-two', color='label')) + geom_point(size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
+        #print(chart_after)
+
+        n_sne = 3000
+
+        time_start = time.time()
+        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        tsne_results = tsne.fit_transform(df_after.loc[rndperm[:n_sne], feat_cols].values)
+
+        print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
+
+        df_tsne = df_after.loc[rndperm[:n_sne], :].copy()
+        df_tsne['x-tsne'] = tsne_results[:, 0]
+        df_tsne['y-tsne'] = tsne_results[:, 1]
+
+        chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
+                + geom_point(size=75, alpha=0.8) \
+                + ggtitle("tSNE dimensions colored by digit")
+        print(chart_tsne)
 
         # Hot encode labels
         classes = 2
@@ -112,14 +192,18 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
                         validation_data=(x_pred_eval, y_eval))
 
         acc = model_dense.evaluate(x=x_pred_test, y=y_test)
-        acc_gender = acc[1]
+
+        x_pred_test_utt = model_dense.predict(x_pred_test)
+        acc_utterance_gender = utterance_accuracy(x_pred_test_utt, y_test)
+
+        if utterance:
+            acc_gender = acc_utterance_gender
+        else:
+            acc_gender = acc[1]
         print('test accuracy gender discrimination {0} %'.format(acc_gender))
 
         # Build DNN for speaker identification
         classes = number_speaker
-        for k in range(int(420/number_speaker)):
-            y_retest[k] = keras.utils.to_categorical(y_retest[k] % classes, classes)
-            y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % classes, classes)
 
         input_speaker = (1, 1, 512)
         model_dense_speaker = Sequential()
@@ -134,19 +218,24 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
 
         # Train DNN for speaker identification
         accuracy_speaker = []
-        for k in range(int(420/number_speaker)):
+        for k in range(int(400/number_speaker)):
+            print('------------Speaker Batch Iteration {0}-------------'.format(k+1))
+            y_retest_one = keras.utils.to_categorical(y_retest[k] % classes, classes)
+            y_retrain_one = keras.utils.to_categorical(y_retrain[k] % classes, classes)
+
             x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
 
             reset_weights(model_dense_speaker)
-            model_dense_speaker.fit(x=x_input_train, y=y_retrain[k], shuffle=True, epochs=100,
-                                    batch_size=150,
-                                    validation_data=(x_input_eval, y_retest[k]), callbacks=[tensor_board, history])
+            model_dense_speaker.fit(x=x_input_train, y=y_retrain_one, shuffle=True, epochs=150,
+                                    batch_size=90,
+                                    validation_data=(x_input_eval, y_retest_one), callbacks=[tensor_board, history])
 
-            accuracy_1 = list(history.acc)
-            accuracy_speaker.append(accuracy_1[-1])
+            pred_speaker = model_dense_speaker.predict(x_input_eval)
+            utterance_acc = utterance_accuracy(pred_speaker, y_retest_one)
+            accuracy_speaker.append(utterance_acc)
 
-        acc_speaker = sum(accuracy_speaker) / int(400/number_speaker)
+        acc_speaker = np.mean(accuracy_speaker)
 
     else:
         # So row 0 are the males, and row 1 are the females
@@ -209,7 +298,12 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
                   epochs=50,
                   validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], [eval_y1,  eval_y2,  eval_y]))
 
+
         acc_siamese_training = model_whole.evaluate([te_pairs[:, 0], te_pairs[:, 1]], [te_y1,  te_y2,  te_y], verbose=1)
+
+        pred_test = model_whole.predict([te_pairs[:, 0], te_pairs[:, 1]])
+        utterance_accuracy(pred_test[0][:], te_y1)
+        utterance_accuracy(pred_test[1][:], te_y2 )
 
         print('--- accuracies for composite loss functions {0} %---'.format(acc_siamese_training))
 
@@ -239,9 +333,6 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         print('test accuracy gender discrimination {0} %'.format(acc_gender))
 
         classes = number_speaker
-        for k in range(int(round(420/number_speaker))):
-            y_retest[k] = keras.utils.to_categorical(y_retest[k] % classes, classes)
-            y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % classes, classes)
 
         accuracy_speaker = []
         input_speaker = (1, 1, 512)
@@ -257,21 +348,61 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model_dense_speaker.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
 
         for k in range(int(round(420/number_speaker))):
-            x_input_train = model_new.predict(x_retrain[k])
+            print('---------Speaker Batch Iteration {0} of {1}------------'.format(k+1),int(round(400/number_speaker)))
+            y_retest[k] = keras.utils.to_categorical(y_retest[k] % classes, classes)
+            y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % classes, classes)
 
+            x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
 
             reset_weights(model_dense_speaker)
-            model_dense_speaker.fit(x=x_input_train, y=y_retrain[k], shuffle=True, epochs=100,
-                                    batch_size=150,
-                                    validation_data=(x_input_eval, y_retest[k]), callbacks=[tensor_board, history])
+            model_dense_speaker.fit(x=x_input_train, y=y_retrain[k], shuffle=True, epochs=150,
+                                    batch_size=90, validation_data=(x_input_eval, y_retest[k]), callbacks=[tensor_board, history])
 
             accuracy_1 = list(history.acc)
             accuracy_speaker.append(accuracy_1[-1])
 
-        acc_speaker = sum(accuracy_speaker) / int(420/number_speaker)
+        acc_speaker = sum(accuracy_speaker) / int(400/number_speaker)
 
-    return acc_speaker, acc_gender
+    return acc_speaker, acc_gender, accuracy_siamese
+
+
+def utterance_accuracy(y_pred, y_true, secs=3):
+
+    """
+    Computes the utterance based accuracy of a predicted vector
+    :param secs:    duration of utterance in seconds
+    :param y_pred: predicted labels
+    :param y_true: true labels
+    :return: utterance based accuracy
+    """
+    number_feature_frames = int(secs / 0.5)
+    y_pred = np.argmax(y_pred, axis=1)
+    y_true = np.argmax(y_true, axis=1)
+
+    pred_list = []
+    true_list = []
+
+    for i in range(int(round(len(y_pred)/number_feature_frames))):
+        utterance = y_pred[i*number_feature_frames:i*number_feature_frames+number_feature_frames]
+        counted_pred = np.unique(utterance, return_counts=True)
+        classes = counted_pred[0]
+        counted = np.argmax(counted_pred[1])
+        class_pred = classes[counted]
+        pred_list.append(class_pred)
+        pred_class = np.asarray(pred_list)
+
+        utterance = y_true[i * number_feature_frames:i * number_feature_frames + number_feature_frames]
+        counted_true = np.unique(utterance, return_counts=True)
+        classes = counted_true[0]
+        counted = np.argmax(counted_true[1])
+        class_true = classes[counted]
+        true_list.append(class_true)
+        true_class = np.asarray(true_list)
+
+    accuracy = np.mean(pred_class == true_class)
+
+    return accuracy
 
 
 def reshape_speaker(data):
@@ -434,35 +565,35 @@ def create_base_network(input_shape):
     x = BatchNormalization()(input)
     x = Conv2D(64, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(0.25)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(0.25)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.3)(x)
+    x = Dropout(0.25)(x)
 
     x = Flatten()(x)
 
@@ -572,4 +703,3 @@ def reset_weights(model):
     for layer in model.layers:
         if hasattr(layer, 'kernel_initializer'):
             layer.kernel.initializer.run(session=session)
-

@@ -27,7 +27,8 @@ def parameters(mode):
 
     # Choose Gender or Speaker // 0 = Gender // 1 = Speaker
 
-    neural_network = neural_network_list[1]
+    neural_network = neural_network_list[0]
+    number_speakers = 20
 
 
     feature_mode = feature_mode_list[0]
@@ -35,7 +36,7 @@ def parameters(mode):
     subframe_length = subframe_length_list[1]
     number_features = number_features_list[1]
 
-    number_speakers = 10
+
 
     if neural_network == 'gender':
         dropout_rate = dropout_rate_list[2]

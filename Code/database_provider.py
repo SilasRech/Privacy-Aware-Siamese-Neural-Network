@@ -82,7 +82,7 @@ def database(mode, saved):
                 filename_sig = db_df.iloc[0]['audiofile']
                 # Split into training and evaluation data
                 male_data_con = extract_feature(m, meta, male_list[m], filename_sig)
-                female_data_con = extract_feature(10+m, meta, female_list[m], filename_sig)
+                female_data_con = extract_feature(int(round(number_speakers/2))+m, meta, female_list[m], filename_sig)
 
                 evalf, training_f = np.split(female_data_con, [int(.3 * len(female_data_con))])
                 evalm, training_m = np.split(male_data_con, [int(.3 * len(male_data_con))])
@@ -196,9 +196,11 @@ def database(mode, saved):
         if db_df.neural_network.item() == 'gender':
 
             test_label = testing.loc[:, ['labeled', 'gender']]
+
             test_label.index = range(len(test_label.index))
 
             test_labels = gender_labels(test_label, features)
+
             test_data = reshape_data(testing, features, test_label)
 
         elif db_df.neural_network.item() == 'speaker':
@@ -212,6 +214,7 @@ def database(mode, saved):
 
             test_label = retesting.loc[:, 'labeled']
             train_label = retraining.loc[:, 'labeled']
+
             test_label.index = range(len(test_label.index))
             train_label.index = range(len(train_label.index))
 
@@ -278,7 +281,7 @@ def speaker_labels(label, features):
 
     label_list = []
     label.index = range(len(label.index))
-    label = label % int(round(number_speakers/2))
+    label = label % number_speakers
 
     for m in range(max(label)+1):
         index_ = [i for i, x in enumerate(label) if x == m]
@@ -309,7 +312,7 @@ def reshape_data(data, features, label):
         names_list = label.loc[:, 'labeled']
     else:
         names_list = label
-        names_list = names_list % 10
+        names_list = names_list % number_speakers
 
     for m in range(max(names_list)+1):
         index_ = [i for i, x in enumerate(names_list) if x == m]
@@ -347,7 +350,6 @@ def gender_labels(label, features):
     label_names = label.loc[:, 'labeled']
     label_gender = label.loc[:, 'gender']
 
-    test = range(max(label_names))
 
     for m in range(max(label_names)+1):
         index_ = [i for i, x in enumerate(label_names) if x == m]
@@ -378,7 +380,7 @@ def extract_feature(m, names_list, speaker_list, pathfile):
 
         test_feature, num_rows = feature_extraction(audiofile=audiofile)
         data = pd.concat([data, test_feature])
-        meta_one = pd.DataFrame({'name': names_list.iloc[file_num]['name'], 'gender': names_list.iloc[file_num]['gender'], 'sample': names_list.iloc[file_num]['sample'], 'labeled': m}, index=[file_num])
+        meta_one = pd.DataFrame({'name': names_list.iloc[file_num]['name'], 'gender': names_list.iloc[file_num]['gender'], 'sample': names_list.iloc[file_num]['sample'], 'labeled': m, 'utterance': m*n}, index=[file_num])
         meta_one = meta_one.loc[meta_one.index.repeat(num_rows)]
         meta = pd.concat([meta, meta_one])
 
