@@ -36,6 +36,13 @@ stopper = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.03, pati
 
 def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_retest, y_retest, x_retrain, y_retrain, utterance = False):
 
+    y_train_utt = y_train[:, 1]
+    y_test_utt = y_test[:, 1]
+    y_eval_utt = y_eval[:, 1]
+    y_eval = y_eval[:, 0]
+    y_test = y_test[:, 0]
+    y_train = y_train[:, 0]
+
     # Clear Model
     tf.keras.backend.clear_session()
     history = AccuracyHistory()
@@ -53,46 +60,47 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
 
 
         # Preate Pairs
-        tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 0.5, 1)
-        eval_pairs, eval_y, eval_y1, eval_y2 = create_pairs_ratio(x_eval, digits_indeces_eval, 0.5, 1)
-        te_pairs, te_y, te_y1, te_y2 = create_pairs_ratio(x_test, digits_indeces_test, 0.5, 1)
+        tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 0.5, 2)
+        eval_pairs, eval_y, eval_y1, eval_y2 = create_pairs_ratio(x_eval, digits_indeces_eval, 0.5, 2)
+        te_pairs, te_y, te_y1, te_y2 = create_pairs_ratio(x_test, digits_indeces_test, 0.5, 2)
 
-        flattened_x = x_test.reshape(x_test.shape[0], -1)
-        feat_cols = ['feature' + str(i) for i in range(flattened_x.shape[1])]
+        #flattened_x = x_test.reshape(x_test.shape[0], -1)
+        #feat_cols = ['feature' + str(i) for i in range(flattened_x.shape[1])]
 
-        df_before = pd.DataFrame(flattened_x, columns=feat_cols)
-        df_before['label'] = y_test
-        df_before['label'] = df_before['label'].apply(lambda i: str(i))
+        #df_before = pd.DataFrame(flattened_x, columns=feat_cols)
+        #df_before['label'] = y_test
+        #df_before['label'] = df_before['label'].apply(lambda i: str(i))
 
-        pca_before = PCA(n_components=50)
-        pca_result = pca_before.fit_transform(df_before[feat_cols].values)
+        #pca_before = PCA(n_components=50)
+        #pca_result = pca_before.fit_transform(df_before[feat_cols].values)
 
-        for i in range(50):
-            df_before['pca{0}'.format(i)] = pca_result[:, i]
+        #for i in range(50):
+        #    df_before['pca{0}'.format(i)] = pca_result[:, i]
 
-        print('Explained variation per principal component: {}'.format(pca_before.explained_variance_ratio_))
+        #print('Explained variation per principal component: {}'.format(pca_before.explained_variance_ratio_))
 
-        rndperm = np.random.permutation(df_before.shape[0])
+        #rndperm = np.random.permutation(df_before.shape[0])
 
         #data = ggplot(aes(x='pca0', y='pca1', color='label'), data=df_before.loc[rndperm[:3000], :],) + geom_point(size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
         #print(data)
 
         n_sne = 3000
 
-        time_start = time.time()
-        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-        tsne_results = tsne.fit_transform(df_before.loc[rndperm[:n_sne], feat_cols].values)
+        #time_start = time.time()
+        #tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        #tsne_results = tsne.fit_transform(df_before.loc[rndperm[:n_sne], feat_cols].values)
 
-        print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
+        #print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
 
-        df_tsne = df_before.loc[rndperm[:n_sne], :].copy()
-        df_tsne['x-tsne'] = tsne_results[:, 0]
-        df_tsne['y-tsne'] = tsne_results[:, 1]
+        #df_tsne = df_before.loc[rndperm[:n_sne], :].copy()
+        #df_tsne['x-tsne'] = tsne_results[:, 0]
+        #df_tsne['y-tsne'] = tsne_results[:, 1]
 
-        chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
-                     + geom_point(size=75, alpha=0.8) \
-                     + ggtitle("tSNE dimensions colored by digit")
-        print(chart_tsne)
+        #chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
+        #             + geom_point(size=75, alpha=0.8) \
+        #             + ggtitle("tSNE dimensions colored by digit")
+        #print(chart_tsne)
+
         # Build Basenetwork (Convolutional Part)
         base_network = create_base_network(input_shape)
 
@@ -115,7 +123,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy])
         model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
                   batch_size=150,
-                  epochs=100,
+                  epochs=50,
                   validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=True)
         test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
         accuracy_siamese = compute_accuracy(te_y, test_predictions)
@@ -131,44 +139,44 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         x_pred_eval = model_new.predict(x_eval)
         x_pred_test = model_new.predict(x_test)
 
-        #DISPLAY THE DATA AFTER SIAMESE
-        flattened_x_pred = x_test.reshape(x_pred_test.shape[0], -1)
+        #Display the data after siamese
+        #flattened_x_pred = x_test.reshape(x_pred_test.shape[0], -1)
 
-        feat_cols = ['feature' + str(i) for i in range(flattened_x_pred.shape[1])]
+        #feat_cols = ['feature' + str(i) for i in range(flattened_x_pred.shape[1])]
 
-        df_after = pd.DataFrame(flattened_x_pred, columns=feat_cols)
-        df_after['label'] = y_test
-        df_after['label'] = df_after['label'].apply(lambda i: str(i))
+        #df_after = pd.DataFrame(flattened_x_pred, columns=feat_cols)
+        #df_after['label'] = y_test
+        #df_after['label'] = df_after['label'].apply(lambda i: str(i))
 
-        rndperm = np.random.permutation(df_after.shape[0])
+        #rndperm = np.random.permutation(df_after.shape[0])
 
-        pca_after = PCA(n_components=50)
-        pca_result = pca_after.fit_transform(df_after[feat_cols].values)
+        #pca_after = PCA(n_components=50)
+        # pca_result = pca_after.fit_transform(df_after[feat_cols].values)
 
-        for i in range(50):
-            df_after['pca{0}'.format(i)] = pca_result[:, i]
+        #for i in range(50):
+         #   df_after['pca{0}'.format(i)] = pca_result[:, i]
 
-        print('Explained variation per principal component: {}'.format(pca_after.explained_variance_ratio_))
+        #print('Explained variation per principal component: {}'.format(pca_after.explained_variance_ratio_))
 
         #chart_after = ggplot(df.loc[rndperm[:3000], :], aes(x='pca-one', y='pca-two', color='label')) + geom_point(size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
         #print(chart_after)
 
-        n_sne = 3000
+        #n_sne = 3000
 
-        time_start = time.time()
-        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-        tsne_results = tsne.fit_transform(df_after.loc[rndperm[:n_sne], feat_cols].values)
+        #time_start = time.time()
+        #tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        #tsne_results = tsne.fit_transform(df_after.loc[rndperm[:n_sne], feat_cols].values)
 
-        print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
+        #print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
 
-        df_tsne = df_after.loc[rndperm[:n_sne], :].copy()
-        df_tsne['x-tsne'] = tsne_results[:, 0]
-        df_tsne['y-tsne'] = tsne_results[:, 1]
+        #df_tsne = df_after.loc[rndperm[:n_sne], :].copy()
+        #df_tsne['x-tsne'] = tsne_results[:, 0]
+        #df_tsne['y-tsne'] = tsne_results[:, 1]
 
-        chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
-                + geom_point(size=75, alpha=0.8) \
-                + ggtitle("tSNE dimensions colored by digit")
-        print(chart_tsne)
+        #chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
+                #+ geom_point(size=75, alpha=0.8) \
+                #+ ggtitle("tSNE dimensions colored by digit")
+        #print(chart_tsne)
 
         # Hot encode labels
         classes = 2
@@ -194,7 +202,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         acc = model_dense.evaluate(x=x_pred_test, y=y_test)
 
         x_pred_test_utt = model_dense.predict(x_pred_test)
-        acc_utterance_gender = utterance_accuracy(x_pred_test_utt, y_test)
+        acc_utterance_gender = utterance_accuracy(x_pred_test_utt, y_test, y_test_utt)
 
         if utterance:
             acc_gender = acc_utterance_gender
@@ -220,8 +228,10 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         accuracy_speaker = []
         for k in range(int(400/number_speaker)):
             print('------------Speaker Batch Iteration {0}-------------'.format(k+1))
-            y_retest_one = keras.utils.to_categorical(y_retest[k] % classes, classes)
-            y_retrain_one = keras.utils.to_categorical(y_retrain[k] % classes, classes)
+            y_retest_one = keras.utils.to_categorical(y_retest[k, 0] % classes, classes)
+            y_retrain_one = keras.utils.to_categorical(y_retrain[k, 0] % classes, classes)
+
+            y_retest_utt = y_retest[k, 1]
 
             x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
@@ -232,7 +242,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
                                     validation_data=(x_input_eval, y_retest_one), callbacks=[tensor_board, history])
 
             pred_speaker = model_dense_speaker.predict(x_input_eval)
-            utterance_acc = utterance_accuracy(pred_speaker, y_retest_one)
+            utterance_acc = utterance_accuracy(pred_speaker, y_retest_one, y_retest_utt)
             accuracy_speaker.append(utterance_acc)
 
         acc_speaker = np.mean(accuracy_speaker)
@@ -367,7 +377,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
     return acc_speaker, acc_gender, accuracy_siamese
 
 
-def utterance_accuracy(y_pred, y_true, secs=3):
+def utterance_accuracy(y_pred, y_true, y_utt):
 
     """
     Computes the utterance based accuracy of a predicted vector
@@ -376,15 +386,23 @@ def utterance_accuracy(y_pred, y_true, secs=3):
     :param y_true: true labels
     :return: utterance based accuracy
     """
-    number_feature_frames = int(secs / 0.5)
     y_pred = np.argmax(y_pred, axis=1)
     y_true = np.argmax(y_true, axis=1)
 
     pred_list = []
     true_list = []
 
-    for i in range(int(round(len(y_pred)/number_feature_frames))):
-        utterance = y_pred[i*number_feature_frames:i*number_feature_frames+number_feature_frames]
+    for i in range(int(max(y_utt)+1)):
+        index_ = [m for m, x in enumerate(y_utt) if x == i]
+        if index_ == []:
+            i += 1
+            index_ = [m for m, x in enumerate(y_utt) if x == i]
+        last_index = index_[-1]
+        first_index = index_[0]
+
+        # Class for predicted utterance
+        print(i)
+        utterance = y_pred[first_index:last_index+1]
         counted_pred = np.unique(utterance, return_counts=True)
         classes = counted_pred[0]
         counted = np.argmax(counted_pred[1])
@@ -392,7 +410,8 @@ def utterance_accuracy(y_pred, y_true, secs=3):
         pred_list.append(class_pred)
         pred_class = np.asarray(pred_list)
 
-        utterance = y_true[i * number_feature_frames:i * number_feature_frames + number_feature_frames]
+        # Class for true utterance
+        utterance = y_true[first_index:last_index+1]
         counted_true = np.unique(utterance, return_counts=True)
         classes = counted_true[0]
         counted = np.argmax(counted_true[1])

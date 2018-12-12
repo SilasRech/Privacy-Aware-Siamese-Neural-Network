@@ -109,38 +109,84 @@ def database(mode, saved):
 
         if db_df.neural_network.item() == 'gender':
 
-            # create labels for gender mode
+            # Select data and re-indexing
             train_label = training1.loc[:, ['labeled', 'gender']]
+            train_label_utt = training1.loc[:, 'utterance']
             train_label.index = range(len(train_label.index))
+            train_label_utt.index = range(len(train_label_utt.index))
 
-            train_labels = gender_labels(train_label, features)
+            #  Setup Utterance Labels
+            utt_list_labels = []
+            for i in range(len(train_label_utt) - len(train_label_utt) % features):
+                if i == 0:
+                    num_speaker_test = 0
+                elif train_label_utt[i] != train_label_utt[i-1]:
+                    num_speaker_test += 1
+                utt_list_labels.append(num_speaker_test)
+            utt_labels_train = np.asarray(utt_list_labels)
 
+            train_labels = gender_labels(train_label, utt_labels_train, features)
+
+            # Selecting data and re-indexing
             eval_label = eval_con.loc[:, ['labeled', 'gender']]
+            eval_label_utt = eval_con.loc[:, 'utterance']
             eval_label.index = range(len(eval_label.index))
+            eval_label_utt = range(len(eval_label_utt.index))
 
-            eval_labels = gender_labels(eval_label, features)
+            utt_list_labels = []
+            for i in range(len(eval_label_utt) - len(eval_label_utt) % features):
+                if i == 0:
+                    num_speaker_test = 0
+                elif eval_label_utt[i] != eval_label_utt[i - 1]:
+                    num_speaker_test += 1
+                utt_list_labels.append(num_speaker_test)
+            utt_labels_eval = np.asarray(utt_list_labels)
+
+            eval_labels = gender_labels(eval_label, utt_labels_eval, features)
 
         elif db_df.neural_network.item() == 'speaker':
 
             # Create labels for speaker mode
             train_label = training1.loc[:, 'labeled']
+            train_label_utt = training1.loc[:, 'utterance']
+            utt_list_labels = []
+            for i in range(len(train_label_utt) - len(train_label_utt) % features):
+                if i == 0:
+                    num_utt = 0
+                elif train_label_utt[i] != train_label_utt[i - 1]:
+                    num_utt += 1
+                utt_list_labels.append(num_utt)
+
+            utt_labels_train = np.asarray(utt_list_labels)
+
             train_label.index = range(len(train_label.index))
-            train_labels = speaker_labels(train_label, features)
+            train_labels = speaker_labels(train_label, utt_labels_train, features)
 
+            utt_list_labels = []
             eval_label = eval_con.loc[:, 'labeled']
+            eval_label_utt = eval_con.loc[:, 'utterance']
             eval_label.index = range(len(eval_label.index))
-            eval_labels = speaker_labels(eval_label, features)
+            eval_label_utt.index = range(len(eval_label_utt.index))
 
-        else:
-            raise ValueError('Neural Network Label not specified')
+            for i in range(len(eval_label_utt) - len(eval_label_utt) % features):
+                if i == 0:
+                    num_utt = 0
+                elif eval_label_utt[i] != eval_label_utt[i - 1]:
+                    num_utt += 1
+                utt_list_labels.append(num_utt)
+
+            utt_labels_eval = np.asarray(utt_list_labels)
+
+            eval_labels = speaker_labels(eval_label, utt_labels_eval, features)
 
         # reshape the data to a 4-dimensional matrix for the network
         train_data = reshape_data(training1, features, train_label)
         eval_data = reshape_data(eval_con, features, eval_label)
 
-
         print('training data/evaluation data finished')
+
         return eval_data, eval_labels, train_data, train_labels
+
 
     ##########################################################
     #####   TESTING MODE    ##################################
@@ -196,10 +242,21 @@ def database(mode, saved):
         if db_df.neural_network.item() == 'gender':
 
             test_label = testing.loc[:, ['labeled', 'gender']]
+            test_utt = testing.loc[:, 'utterance']
 
             test_label.index = range(len(test_label.index))
+            test_utt.index = range(len(test_utt.index))
 
-            test_labels = gender_labels(test_label, features)
+            utt_list_labels = []
+            for i in range(len(test_utt) - len(test_utt) % features):
+                if i == 0:
+                    num_utt = 0
+                elif test_utt[i] != test_utt[i - 1]:
+                    num_utt += 1
+                utt_list_labels.append(num_utt)
+            utt_labels_test = np.asarray(utt_list_labels)
+
+            test_labels = gender_labels(test_label, utt_labels_test, features)
 
             test_data = reshape_data(testing, features, test_label)
 
@@ -209,37 +266,62 @@ def database(mode, saved):
             train_data_list = []
             test_labels_list = []
             train_labels_list = []
-            names_list_test = []
             old_index = 0
 
             test_label = retesting.loc[:, 'labeled']
             train_label = retraining.loc[:, 'labeled']
 
+            test_utt = retesting.loc[:, 'utterance']
+            train_utt = retraining.loc[:, 'utterance']
+
             test_label.index = range(len(test_label.index))
             train_label.index = range(len(train_label.index))
 
+            test_utt.index = range(len(test_utt.index))
+            train_utt.index = range(len(train_utt.index))
+
+            # Setup Test Labels
+            names_list_test = []
             for i in range(len(test_label) - len(test_label) % features):
                 if i == 0:
                     num_speaker_test = 1
                 elif test_label[i] != test_label[i-1]:
                     num_speaker_test += 1
                 names_list_test.append(num_speaker_test)
-
             names_list_test = np.asarray(names_list_test)
+
+            utt_test_labels = []
+            for i in range(len(test_utt) - len(test_utt) % features):
+                if i == 0:
+                    num_utt = 0
+                elif test_utt[i] != test_utt[i - 1]:
+                    num_utt += 1
+                utt_test_labels.append(num_utt)
+            utt_labels_test = np.asarray(utt_test_labels)
+            # Setup Test Labels Finished
 
             for k in range(1, int(round(420/number_speakers))+1):
                 index_ = [i for i, x in enumerate(names_list_test) if x == k*number_speakers]
                 last_index = index_[-1]
                 data_one = retesting.iloc[old_index:last_index][:]
                 label_one = test_label.iloc[old_index:last_index][:]
+                utterance_one = utt_labels_test[old_index:last_index]
+                if k == 1:
+                    utterance_mod = utterance_one
+                    label_mod = label_one
+                else:
+                    utterance_mod = utterance_one % utterance_one[0]
+                    label_mod = label_one % number_speakers
 
-                test_data = reshape_data(data_one, features, label_one)
-                test_labels = speaker_labels(label_one, features)
+                test_data = reshape_data(data_one, features, label_mod)
+                test_labels = speaker_labels(label_mod, utterance_mod, features)
 
                 test_labels_list.append(test_labels)
                 test_data_list.append(test_data)
                 old_index = index_[-1]+1
+                print('Testdata Speaker Group: {0}'.format(k-1))
 
+            # Set Up Train Labels
             names_list_train = []
             for i in range(len(train_label) - len(train_label) % features):
                 if i == 0:
@@ -247,22 +329,39 @@ def database(mode, saved):
                 elif train_label[i] != train_label[i-1]:
                     num_speaker_train += 1
                 names_list_train.append(num_speaker_train)
-
             names_list_train = np.asarray(names_list_train)
+
+            utt_train_labels = []
+            for i in range(len(train_utt) - len(train_utt) % features):
+                if i == 0:
+                    num_utt = 0
+                elif train_utt[i] != train_utt[i - 1]:
+                    num_utt += 1
+                utt_train_labels.append(num_utt)
+            utt_labels_train = np.asarray(utt_train_labels)
+            # Finished Set Up Train Labels
+
             old_index = 0
             for k in range(1, int(round(420/number_speakers))+1):
                 index_ = [i for i, x in enumerate(names_list_train) if x == k*number_speakers]
                 last_index = index_[-1]
                 data_one = retraining.iloc[old_index:last_index][:]
                 label_one = train_label.iloc[old_index:last_index][:]
+                utterance_one = utt_labels_train[old_index:last_index]
+                if k == 1:
+                    utterance_mod = utterance_one
+                    label_mod = label_one
+                else:
+                    utterance_mod = utterance_one % utterance_one[0]
+                    label_mod = label_one % number_speakers
 
-                train_data = reshape_data(data_one, features, label_one)
-                train_labels = speaker_labels(label_one, features)
+                train_data = reshape_data(data_one, features, label_mod)
+                train_labels = speaker_labels(label_mod, utterance_mod, features)
 
                 train_labels_list.append(train_labels)
                 train_data_list.append(train_data)
                 old_index = index_[-1]+1
-
+                print('Traindata Speaker Group: {0}'.format(k-1))
         print('testing data finished')
 
         if db_df.neural_network.item() == 'speaker':
@@ -271,7 +370,7 @@ def database(mode, saved):
             return test_data, test_labels
 
 
-def speaker_labels(label, features):
+def speaker_labels(label, utterance, features):
     """
     Transforms names list in to a number based 1-D vector
     :param label: list of names
@@ -281,7 +380,7 @@ def speaker_labels(label, features):
 
     label_list = []
     label.index = range(len(label.index))
-    label = label % number_speakers
+    one_label_utt = []
 
     for m in range(max(label)+1):
         index_ = [i for i, x in enumerate(label) if x == m]
@@ -289,12 +388,59 @@ def speaker_labels(label, features):
         first_index = index_[0]
         num_rows = last_index - first_index
         num_rows = num_rows - num_rows % features
-        number = label[first_index+5]
+        new_rows = int(num_rows / features)
+        utterance_speaker = utterance[first_index:first_index+num_rows]
+        for i in range(int(num_rows/features)):
+            one_label_utt.append(utterance_speaker[i*features])
+
+        one_label = np.repeat([int(label[first_index+5])], new_rows)
+        label_list = np.concatenate((label_list, one_label))
+
+    utt = np.reshape(one_label_utt, (-1, 1))
+    labels = np.reshape(label_list, (-1, 1))
+    returned_labels = np.concatenate((labels, utt), axis=1)
+
+    return np.asarray(returned_labels)
+
+
+def gender_labels(label, utterance, features):
+    """
+    Labels genders in 2-D array value based (one is the values and the other one is the utterance
+    :param labels: gender/id labeled 2-D array
+    :param features:
+    :return:
+    """
+    label_list = []
+    one_label_utt = []
+
+    label.index = range(len(label.index))
+    label_gender = label.loc[:, 'gender']
+    label_names = label.loc[:, 'labeled']
+
+    for m in range(max(label_names)+1):
+        index_ = [i for i, x in enumerate(label_names) if x == m]
+        last_index = index_[-1] - index_[-1] % features
+        first_index = index_[0]
+        num_rows = last_index - first_index
+        num_rows = num_rows - num_rows % features
+
+        if label_gender[first_index + 5] == 'f':
+            number = 1
+        else:
+            number = 0
+
+        utterance_speaker = utterance[first_index:first_index + num_rows]
+        for i in range(int(num_rows / features)):
+            one_label_utt.append(utterance_speaker[i * features])
 
         one_label = np.repeat(int(number), int(num_rows / features))
         label_list = np.concatenate((label_list, one_label))
 
-    return label_list
+    utt = np.reshape(one_label_utt, (-1, 1))
+    labels = np.reshape(label_list, (-1, 1))
+    returned_labels = np.concatenate((labels, utt), axis=1)
+
+    return np.asarray(returned_labels)
 
 
 def reshape_data(data, features, label):
@@ -336,39 +482,6 @@ def reshape_data(data, features, label):
     data_imaged = np.reshape(data_con, (-1, features, features, 1))
     return data_imaged
 
-
-def gender_labels(label, features):
-    """
-    Labels genders in 1-D array value based
-    :param labels: gender/id labeled 2-D array
-    :param features:
-    :return:
-    """
-    label_list = []
-
-    label.index = range(len(label.index))
-    label_names = label.loc[:, 'labeled']
-    label_gender = label.loc[:, 'gender']
-
-
-    for m in range(max(label_names)+1):
-        index_ = [i for i, x in enumerate(label_names) if x == m]
-        last_index = index_[-1] - index_[-1] % features
-        first_index = index_[0]
-        num_rows = last_index - first_index
-        num_rows = num_rows - num_rows % features
-
-        if label_gender[first_index+5] == 'f':
-            number = 1
-        else:
-            number = 0
-
-        one_label = np.repeat(int(number), int(num_rows / features))
-        label_list = np.concatenate((label_list, one_label))
-
-    return np.asarray(label_list)
-
-
 def extract_feature(m, names_list, speaker_list, pathfile):
     data = pd.DataFrame()
     meta = pd.DataFrame()
@@ -380,7 +493,7 @@ def extract_feature(m, names_list, speaker_list, pathfile):
 
         test_feature, num_rows = feature_extraction(audiofile=audiofile)
         data = pd.concat([data, test_feature])
-        meta_one = pd.DataFrame({'name': names_list.iloc[file_num]['name'], 'gender': names_list.iloc[file_num]['gender'], 'sample': names_list.iloc[file_num]['sample'], 'labeled': m, 'utterance': m*n}, index=[file_num])
+        meta_one = pd.DataFrame({'name': names_list.iloc[file_num]['name'], 'gender': names_list.iloc[file_num]['gender'], 'sample': names_list.iloc[file_num]['sample'], 'labeled': m, 'utterance': m*10+n}, index=[file_num])
         meta_one = meta_one.loc[meta_one.index.repeat(num_rows)]
         meta = pd.concat([meta, meta_one])
 
