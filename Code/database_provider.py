@@ -10,7 +10,7 @@ features = db_df.iloc[0]['features']
 
 number_speakers = db_df.iloc[0]['number_speakers']
 
-def database(mode, saved):
+def database(mode, saved, type):
     """
     Returns data and label for a given mode, from the timit database
     :param mode: define test or training mode
@@ -107,7 +107,7 @@ def database(mode, saved):
             training1 = pd.read_json(db_df.iloc[0]['training'], orient='split')
             eval_con = pd.read_json(db_df.iloc[0]['eval'], orient='split')
 
-        if db_df.neural_network.item() == 'gender':
+        if type == 'gender':
 
             # Select data and re-indexing
             train_label = training1.loc[:, ['labeled', 'gender']]
@@ -144,7 +144,7 @@ def database(mode, saved):
 
             eval_labels = gender_labels(eval_label, utt_labels_eval, features)
 
-        elif db_df.neural_network.item() == 'speaker':
+        elif type == 'speaker':
 
             # Create labels for speaker mode
             train_label = training1.loc[:, 'labeled']
@@ -180,8 +180,8 @@ def database(mode, saved):
             eval_labels = speaker_labels(eval_label, utt_labels_eval, features)
 
         # reshape the data to a 4-dimensional matrix for the network
-        train_data = reshape_data(training1, features, train_label)
-        eval_data = reshape_data(eval_con, features, eval_label)
+        train_data = reshape_data(training1, features, train_label, type)
+        eval_data = reshape_data(eval_con, features, eval_label, type)
 
         print('training data/evaluation data finished')
 
@@ -196,7 +196,7 @@ def database(mode, saved):
 
         if saved == 0:
             filename_sig = db_df.iloc[0]['audiofile']
-            if db_df.neural_network.item() == 'gender':
+            if type == 'gender':
                 for m in range(400):
                     testing = extract_feature(m, meta, test_list[m], filename_sig)
                     print(m)
@@ -206,7 +206,7 @@ def database(mode, saved):
                     df_json = test.to_json(orient='split')
                     fs.write(df_json)
 
-            elif db_df.neural_network.item() == 'speaker':
+            elif type == 'speaker':
                 test_list = list(meta.index[0:4200:10])
                 for m in range(420):
                     print(m)
@@ -227,10 +227,10 @@ def database(mode, saved):
             else:
                 raise ValueError('Neural Network Label not specified')
 
-        if db_df.neural_network.item() == 'gender':
+        if type == 'gender':
             testing = pd.read_json(db_df.iloc[0]['testing'], orient='split')
 
-        elif db_df.neural_network.item() == 'speaker':
+        elif type == 'speaker':
             retesting = pd.read_json(db_df.iloc[0]['retesting'], orient='split')
             retraining = pd.read_json(db_df.iloc[0]['retraining'], orient='split')
 
@@ -239,7 +239,7 @@ def database(mode, saved):
 
         print('setting up testing data')
 
-        if db_df.neural_network.item() == 'gender':
+        if type == 'gender':
 
             test_label = testing.loc[:, ['labeled', 'gender']]
             test_utt = testing.loc[:, 'utterance']
@@ -258,9 +258,9 @@ def database(mode, saved):
 
             test_labels = gender_labels(test_label, utt_labels_test, features)
 
-            test_data = reshape_data(testing, features, test_label)
+            test_data = reshape_data(testing, features, test_label, type)
 
-        elif db_df.neural_network.item() == 'speaker':
+        elif type == 'speaker':
 
             test_data_list = []
             train_data_list = []
@@ -313,7 +313,7 @@ def database(mode, saved):
                     utterance_mod = utterance_one % utterance_one[0]
                     label_mod = label_one % number_speakers
 
-                test_data = reshape_data(data_one, features, label_mod)
+                test_data = reshape_data(data_one, features, label_mod, type)
                 test_labels = speaker_labels(label_mod, utterance_mod, features)
 
                 test_labels_list.append(test_labels)
@@ -355,7 +355,7 @@ def database(mode, saved):
                     utterance_mod = utterance_one % utterance_one[0]
                     label_mod = label_one % number_speakers
 
-                train_data = reshape_data(data_one, features, label_mod)
+                train_data = reshape_data(data_one, features, label_mod, type)
                 train_labels = speaker_labels(label_mod, utterance_mod, features)
 
                 train_labels_list.append(train_labels)
@@ -364,7 +364,7 @@ def database(mode, saved):
                 print('Traindata Speaker Group: {0}'.format(k-1))
         print('testing data finished')
 
-        if db_df.neural_network.item() == 'speaker':
+        if type == 'speaker':
             return test_data_list, test_labels_list, train_data_list, train_labels_list
         else:
             return test_data, test_labels
@@ -443,7 +443,7 @@ def gender_labels(label, utterance, features):
     return np.asarray(returned_labels)
 
 
-def reshape_data(data, features, label):
+def reshape_data(data, features, label, type):
     """
     reshapes the feature matric into a 3-D or 4-D vector
     :param data:
@@ -454,7 +454,7 @@ def reshape_data(data, features, label):
 
     label.index = range(len(label.index))
     data.index = range(len(data.index))
-    if db_df.neural_network.item() == 'gender':
+    if type == 'gender':
         names_list = label.loc[:, 'labeled']
     else:
         names_list = label

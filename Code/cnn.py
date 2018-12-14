@@ -34,11 +34,9 @@ stopper = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.03, pati
                                         baseline=None)
 
 
-def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_retest, y_retest, x_retrain, y_retrain, utterance = False):
+def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_retest, y_retest, x_retrain, y_retrain, utterance=False):
 
-    y_train_utt = y_train[:, 1]
     y_test_utt = y_test[:, 1]
-    y_eval_utt = y_eval[:, 1]
     y_eval = y_eval[:, 0]
     y_test = y_test[:, 0]
     y_train = y_train[:, 0]
@@ -57,7 +55,6 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         digits_indeces_train = [np.where(y_train == i)[0] for i in range(2)]
         digits_indeces_eval = [np.where(y_eval == i)[0] for i in range(2)]
         digits_indeces_test = [np.where(y_test == i)[0] for i in range(2)]
-
 
         # Preate Pairs
         tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 0.5, 2)
@@ -84,7 +81,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         #data = ggplot(aes(x='pca0', y='pca1', color='label'), data=df_before.loc[rndperm[:3000], :],) + geom_point(size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
         #print(data)
 
-        n_sne = 3000
+        #n_sne = 3000
 
         #time_start = time.time()
         #tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
@@ -97,8 +94,8 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         #df_tsne['y-tsne'] = tsne_results[:, 1]
 
         #chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
-        #             + geom_point(size=75, alpha=0.8) \
-        #             + ggtitle("tSNE dimensions colored by digit")
+         #            + geom_point(size=75, alpha=0.8) \
+         #            + ggtitle("tSNE dimensions colored by digit")
         #print(chart_tsne)
 
         # Build Basenetwork (Convolutional Part)
@@ -107,7 +104,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         input_a = Input(shape=input_shape)
         input_b = Input(shape=input_shape)
 
-        #Define two outputs for the network with the same weigths
+        # Define two outputs for the network with the same weigths
         processed_a = base_network(input_a)
         processed_b = base_network(input_b)
 
@@ -123,7 +120,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy])
         model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
                   batch_size=150,
-                  epochs=50,
+                  epochs=65,
                   validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=True)
         test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
         accuracy_siamese = compute_accuracy(te_y, test_predictions)
@@ -139,44 +136,44 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         x_pred_eval = model_new.predict(x_eval)
         x_pred_test = model_new.predict(x_test)
 
-        #Display the data after siamese
-        #flattened_x_pred = x_test.reshape(x_pred_test.shape[0], -1)
+        # Display the data after siamese
+        flattened_x_pred = x_test.reshape(x_pred_test.shape[0], -1)
 
-        #feat_cols = ['feature' + str(i) for i in range(flattened_x_pred.shape[1])]
+        feat_cols = ['feature' + str(i) for i in range(flattened_x_pred.shape[1])]
 
-        #df_after = pd.DataFrame(flattened_x_pred, columns=feat_cols)
-        #df_after['label'] = y_test
-        #df_after['label'] = df_after['label'].apply(lambda i: str(i))
+        df_after = pd.DataFrame(flattened_x_pred, columns=feat_cols)
+        df_after['label'] = y_test
+        df_after['label'] = df_after['label'].apply(lambda i: str(i))
 
-        #rndperm = np.random.permutation(df_after.shape[0])
+        pca_after = PCA(n_components=50)
+        pca_result = pca_after.fit_transform(df_after[feat_cols].values)
 
-        #pca_after = PCA(n_components=50)
-        # pca_result = pca_after.fit_transform(df_after[feat_cols].values)
+        for i in range(50):
+            df_after['pca{0}'.format(i)] = pca_result[:, i]
 
-        #for i in range(50):
-         #   df_after['pca{0}'.format(i)] = pca_result[:, i]
+        print('Explained variation per principal component: {}'.format(pca_after.explained_variance_ratio_))
 
-        #print('Explained variation per principal component: {}'.format(pca_after.explained_variance_ratio_))
+        rndperm = np.random.permutation(df_after.shape[0])
+        data = ggplot(aes(x='pca0', y='pca1', color='label'), data=df_after.loc[rndperm[:3000], :], ) + geom_point(
+            size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
+        print(data)
 
-        #chart_after = ggplot(df.loc[rndperm[:3000], :], aes(x='pca-one', y='pca-two', color='label')) + geom_point(size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
-        #print(chart_after)
+        n_sne = 3000
 
-        #n_sne = 3000
+        time_start = time.time()
+        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        tsne_results = tsne.fit_transform(df_after.loc[rndperm[:n_sne], feat_cols].values)
 
-        #time_start = time.time()
-        #tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-        #tsne_results = tsne.fit_transform(df_after.loc[rndperm[:n_sne], feat_cols].values)
+        print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
 
-        #print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
+        df_tsne = df_after.loc[rndperm[:n_sne], :].copy()
+        df_tsne['x-tsne'] = tsne_results[:, 0]
+        df_tsne['y-tsne'] = tsne_results[:, 1]
 
-        #df_tsne = df_after.loc[rndperm[:n_sne], :].copy()
-        #df_tsne['x-tsne'] = tsne_results[:, 0]
-        #df_tsne['y-tsne'] = tsne_results[:, 1]
-
-        #chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
-                #+ geom_point(size=75, alpha=0.8) \
-                #+ ggtitle("tSNE dimensions colored by digit")
-        #print(chart_tsne)
+        chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
+                + geom_point(size=75, alpha=0.8) \
+                + ggtitle("tSNE dimensions colored by digit")
+        print(chart_tsne)
 
         # Hot encode labels
         classes = 2
@@ -202,9 +199,9 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         acc = model_dense.evaluate(x=x_pred_test, y=y_test)
 
         x_pred_test_utt = model_dense.predict(x_pred_test)
-        acc_utterance_gender = utterance_accuracy(x_pred_test_utt, y_test, y_test_utt)
 
         if utterance:
+            acc_utterance_gender = utterance_accuracy(x_pred_test_utt, y_test, y_test_utt)
             acc_gender = acc_utterance_gender
         else:
             acc_gender = acc[1]
@@ -228,10 +225,21 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         accuracy_speaker = []
         for k in range(int(400/number_speaker)):
             print('------------Speaker Batch Iteration {0}-------------'.format(k+1))
-            y_retest_one = keras.utils.to_categorical(y_retest[k, 0] % classes, classes)
-            y_retrain_one = keras.utils.to_categorical(y_retrain[k, 0] % classes, classes)
 
-            y_retest_utt = y_retest[k, 1]
+            retest_label_one = y_retest[k]
+            retrain_labels_one = y_retrain[k]
+
+            if utterance:
+                y_retest_utt = retest_label_one[:, 1]
+                retest_label_one_true = retest_label_one[:, 0]
+                retrain_label_one_true = retrain_labels_one[:, 0]
+            else:
+                y_retest_utt = retest_label_one
+                retest_label_one_true = retest_label_one
+                retrain_label_one_true = retrain_labels_one
+
+            y_retest_one = keras.utils.to_categorical(retest_label_one_true % classes, classes)
+            y_retrain_one = keras.utils.to_categorical(retrain_label_one_true % classes, classes)
 
             x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
@@ -241,9 +249,14 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
                                     batch_size=90,
                                     validation_data=(x_input_eval, y_retest_one), callbacks=[tensor_board, history])
 
-            pred_speaker = model_dense_speaker.predict(x_input_eval)
-            utterance_acc = utterance_accuracy(pred_speaker, y_retest_one, y_retest_utt)
-            accuracy_speaker.append(utterance_acc)
+            if not utterance:
+                accuracy_1 = list(history.acc)
+                accuracy_speaker.append(accuracy_1[-1])
+
+            else:
+                pred_speaker = model_dense_speaker.predict(x_input_eval)
+                utterance_acc = utterance_accuracy(pred_speaker, y_retest_one, y_retest_utt)
+                accuracy_speaker.append(utterance_acc)
 
         acc_speaker = np.mean(accuracy_speaker)
 
@@ -267,10 +280,9 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         eval_y2 = keras.utils.to_categorical(eval_y2, classes)
         te_y2 = keras.utils.to_categorical(te_y2, classes)
 
-        y_train = keras.utils.to_categorical(y_train, classes)
-        y_eval = keras.utils.to_categorical(y_eval, classes)
-        y_test = keras.utils.to_categorical(y_test, classes)
-
+        y_train = keras.utils.to_categorical(y_train[:, 0], classes)
+        y_eval = keras.utils.to_categorical(y_eval[:, 0], classes)
+        y_test = keras.utils.to_categorical(y_test[:, 0], classes)
 
         input_a = Input(shape=input_shape)
         input_b = Input(shape=input_shape)
@@ -308,12 +320,11 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
                   epochs=50,
                   validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], [eval_y1,  eval_y2,  eval_y]))
 
-
         acc_siamese_training = model_whole.evaluate([te_pairs[:, 0], te_pairs[:, 1]], [te_y1,  te_y2,  te_y], verbose=1)
 
         pred_test = model_whole.predict([te_pairs[:, 0], te_pairs[:, 1]])
-        utterance_accuracy(pred_test[0][:], te_y1)
-        utterance_accuracy(pred_test[1][:], te_y2 )
+        utterance_accuracy(pred_test[0][:], te_y1, y_test[:, 1])
+        utterance_accuracy(pred_test[1][:], te_y2, y_test[:, 1])
 
         print('--- accuracies for composite loss functions {0} %---'.format(acc_siamese_training))
 
@@ -358,22 +369,33 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         model_dense_speaker.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
 
         for k in range(int(round(420/number_speaker))):
-            print('---------Speaker Batch Iteration {0} of {1}------------'.format(k+1),int(round(400/number_speaker)))
-            y_retest[k] = keras.utils.to_categorical(y_retest[k] % classes, classes)
-            y_retrain[k] = keras.utils.to_categorical(y_retrain[k] % classes, classes)
+            print('---------Speaker Batch Iteration {0} of {1}------------'.format(k+1), int(round(420/number_speaker)))
+            retest_label_one = y_retest[k]
+            retrain_labels_one = y_retrain[k]
+
+            y_retest_utt = retest_label_one[:, 1]
+            retest_label_one_true = retest_label_one[:, 0]
+            retrain_label_one_true = retrain_labels_one[:, 0]
+            y_retest_one = keras.utils.to_categorical(retest_label_one_true % classes, classes)
+            y_retrain_one = keras.utils.to_categorical(retrain_label_one_true % classes, classes)
 
             x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
 
             reset_weights(model_dense_speaker)
-            model_dense_speaker.fit(x=x_input_train, y=y_retrain[k], shuffle=True, epochs=150,
-                                    batch_size=90, validation_data=(x_input_eval, y_retest[k]), callbacks=[tensor_board, history])
+            model_dense_speaker.fit(x=x_input_train, y=y_retrain_one, shuffle=True, epochs=150,
+                                    batch_size=90, validation_data=(x_input_eval, y_retest_one), callbacks=[tensor_board, history])
 
-            accuracy_1 = list(history.acc)
-            accuracy_speaker.append(accuracy_1[-1])
+            if not utterance:
+                accuracy_1 = list(history.acc)
+                accuracy_speaker.append(accuracy_1[-1])
 
-        acc_speaker = sum(accuracy_speaker) / int(400/number_speaker)
+            else:
+                pred_speaker = model_dense_speaker.predict(x_input_eval)
+                utterance_acc = utterance_accuracy(pred_speaker, y_retest_one, y_retest_utt)
+                accuracy_speaker.append(utterance_acc)
 
+            acc_speaker = np.mean(accuracy_speaker)
     return acc_speaker, acc_gender, accuracy_siamese
 
 
