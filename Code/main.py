@@ -14,7 +14,11 @@ if cnn_list.iloc[0]['classifier'] == 'gender':
     #test_data, test_labels = database('test', 1)
     #np.save('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_data_utterance.json.npy', test_data)
     #np.save('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_label_utterance.json.npy', test_labels)
-    retest_data, retest_labels, retrain_data, retrain_labels = database('test', 1, 'speaker')
+    #retest_data, retest_labels, retrain_data, retrain_labels = database('test', 1, 'speaker')
+    retest_data = 0
+    retest_labels = 0
+    retrain_data = 0
+    retrain_labels = 0
     test_data = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_data_utterance.json.npy')
     test_labels = np.load('C:\\Users\\jonny\\Desktop\\log\\InputData\\test_label_utterance.json.npy')
     #retest_data = np.load('C:\\Users\\Jonny\\Desktop\\log\\InputData\\retest_data_utterance.json.npy')

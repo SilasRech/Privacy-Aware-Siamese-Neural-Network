@@ -17,7 +17,6 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from ggplot import *
 import time
-import sklearn.preprocessing as pre
 
 cnn_df = parameters('cnn')
 path_model = cnn_df.iloc[0]['model']
@@ -56,47 +55,12 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         digits_indeces_eval = [np.where(y_eval == i)[0] for i in range(2)]
         digits_indeces_test = [np.where(y_test == i)[0] for i in range(2)]
 
-        # Preate Pairs
+        # Create Pairs
         tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 0.5, 2)
         eval_pairs, eval_y, eval_y1, eval_y2 = create_pairs_ratio(x_eval, digits_indeces_eval, 0.5, 2)
         te_pairs, te_y, te_y1, te_y2 = create_pairs_ratio(x_test, digits_indeces_test, 0.5, 2)
 
-        #flattened_x = x_test.reshape(x_test.shape[0], -1)
-        #feat_cols = ['feature' + str(i) for i in range(flattened_x.shape[1])]
-
-        #df_before = pd.DataFrame(flattened_x, columns=feat_cols)
-        #df_before['label'] = y_test
-        #df_before['label'] = df_before['label'].apply(lambda i: str(i))
-
-        #pca_before = PCA(n_components=50)
-        #pca_result = pca_before.fit_transform(df_before[feat_cols].values)
-
-        #for i in range(50):
-        #    df_before['pca{0}'.format(i)] = pca_result[:, i]
-
-        #print('Explained variation per principal component: {}'.format(pca_before.explained_variance_ratio_))
-
-        #rndperm = np.random.permutation(df_before.shape[0])
-
-        #data = ggplot(aes(x='pca0', y='pca1', color='label'), data=df_before.loc[rndperm[:3000], :],) + geom_point(size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
-        #print(data)
-
-        #n_sne = 3000
-
-        #time_start = time.time()
-        #tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-        #tsne_results = tsne.fit_transform(df_before.loc[rndperm[:n_sne], feat_cols].values)
-
-        #print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
-
-        #df_tsne = df_before.loc[rndperm[:n_sne], :].copy()
-        #df_tsne['x-tsne'] = tsne_results[:, 0]
-        #df_tsne['y-tsne'] = tsne_results[:, 1]
-
-        #chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
-         #            + geom_point(size=75, alpha=0.8) \
-         #            + ggtitle("tSNE dimensions colored by digit")
-        #print(chart_tsne)
+        #display_data(x_test, y_test)
 
         # Build Basenetwork (Convolutional Part)
         base_network = create_base_network(input_shape)
@@ -117,15 +81,32 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         base_network.summary()
 
         # Training phase
-        model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy])
-        model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
-                  batch_size=150,
-                  epochs=65,
-                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=True)
-        test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
-        accuracy_siamese = compute_accuracy(te_y, test_predictions)
 
-        print('Test accuracy siamese network {0}'.format(accuracy_siamese))
+        for i in range(100):
+            if i == 0:
+                model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy_siamese])
+
+            else:
+                tf.keras.backend.clear_session()
+                model = keras.models.load_model('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese_test.h5')
+
+            model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
+                    batch_size=150,
+                    epochs=1,
+                    validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=False)
+
+            model_process = Model(inputs=base_network.get_input_at(0), outputs=base_network.get_layer('max_pooling2d_5').output)
+            x_pred_process = model_process.predict(x_test)
+            display_data(x_pred_process, y_test, '{0}'.format(i))
+
+            model.save('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese_test.h5')
+
+
+        test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
+        accuracy_siamese1 = compute_accuracy(te_y, test_predictions)
+
+        print('Test accuracy siamese network {0}'.format(accuracy_siamese1))
+
 
         # Save model and define model output as input for DNN part
         model.save('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese.h5')
@@ -136,45 +117,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         x_pred_eval = model_new.predict(x_eval)
         x_pred_test = model_new.predict(x_test)
 
-        # Display the data after siamese
-        flattened_x_pred = x_test.reshape(x_pred_test.shape[0], -1)
-
-        feat_cols = ['feature' + str(i) for i in range(flattened_x_pred.shape[1])]
-
-        df_after = pd.DataFrame(flattened_x_pred, columns=feat_cols)
-        df_after['label'] = y_test
-        df_after['label'] = df_after['label'].apply(lambda i: str(i))
-
-        pca_after = PCA(n_components=50)
-        pca_result = pca_after.fit_transform(df_after[feat_cols].values)
-
-        for i in range(50):
-            df_after['pca{0}'.format(i)] = pca_result[:, i]
-
-        print('Explained variation per principal component: {}'.format(pca_after.explained_variance_ratio_))
-
-        rndperm = np.random.permutation(df_after.shape[0])
-        data = ggplot(aes(x='pca0', y='pca1', color='label'), data=df_after.loc[rndperm[:3000], :], ) + geom_point(
-            size=75, alpha=0.8) + ggtitle("First and Second Principal Components colored by digit")
-        print(data)
-
-        n_sne = 3000
-
-        time_start = time.time()
-        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-        tsne_results = tsne.fit_transform(df_after.loc[rndperm[:n_sne], feat_cols].values)
-
-        print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
-
-        df_tsne = df_after.loc[rndperm[:n_sne], :].copy()
-        df_tsne['x-tsne'] = tsne_results[:, 0]
-        df_tsne['y-tsne'] = tsne_results[:, 1]
-
-        chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
-                + geom_point(size=75, alpha=0.8) \
-                + ggtitle("tSNE dimensions colored by digit")
-        print(chart_tsne)
-
+        #display_data(x_pred_test, y_test)
         # Hot encode labels
         classes = 2
         y_train = keras.utils.to_categorical(y_train, classes)
@@ -243,6 +186,9 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
 
             x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
+
+            display_data(x_retest[k], retest_label_one_true)
+            display_data(x_input_eval, retest_label_one_true)
 
             reset_weights(model_dense_speaker)
             model_dense_speaker.fit(x=x_input_train, y=y_retrain_one, shuffle=True, epochs=150,
@@ -606,35 +552,35 @@ def create_base_network(input_shape):
     x = BatchNormalization()(input)
     x = Conv2D(64, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(64, kernel_size=(5, 5), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.1)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.1)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
-    #x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
+    x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.25)(x)
+    x = Dropout(0.1)(x)
 
     x = Flatten()(x)
 
@@ -677,7 +623,7 @@ def create_whole_network(input_shape):
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.3)(x)
+    x = Dropout(0.25)(x)
 
     return Model(input, x)
 
@@ -702,7 +648,7 @@ def compute_accuracy(y_true, y_pred):
     return np.mean(pred == y_true)
 
 
-def accuracy(y_true, y_pred):
+def accuracy_siamese(y_true, y_pred):
     '''Compute classification accuracy with a fixed threshold on distances.
     '''
     return K.mean(K.equal(y_true, K.cast(y_pred < 0.5, y_true.dtype)))
@@ -713,7 +659,7 @@ def accuracy_triple(y_true, y_pred):
 
 
 def contrastive_loss(y_true, y_pred):
-    margin = float(1)
+    margin = float(3)
     return K.mean(y_true * K.square(y_pred) + (1 - y_true) * K.square(K.maximum(float(0), margin - y_pred)))
 
 
@@ -744,3 +690,51 @@ def reset_weights(model):
     for layer in model.layers:
         if hasattr(layer, 'kernel_initializer'):
             layer.kernel.initializer.run(session=session)
+
+
+def display_data(x_test, y_test, name):
+    matrix_test_before = []
+    for i in range(x_test.shape[0]):
+        matrix_test_before.append(x_test[i].flatten())
+
+    matrix_test_before = np.asarray(matrix_test_before)
+    #for i in range(matrix_test_before.shape[0]):
+    #    matrix_test_before[i, :] = np.subtract(matrix_test_before[i, :], np.mean(matrix_test_before[i, :]))
+
+    feat_cols = ['feature' + str(i) for i in range(matrix_test_before.shape[1])]
+
+    df_before = pd.DataFrame(matrix_test_before, columns=feat_cols)
+    df_before['label'] = y_test
+    df_before['label'] = df_before['label'].apply(lambda i: str(i))
+
+    pca_before = PCA(n_components=50)
+    pca_result = pca_before.fit_transform(df_before[feat_cols].values)
+
+    for i in range(50):
+        df_before['pca{0}'.format(i)] = pca_result[:, i]
+
+    print('Explained variation per principal component: {}'.format(pca_before.explained_variance_ratio_))
+
+    rndperm = np.random.permutation(df_before.shape[0])
+
+    data = ggplot(aes(x='pca0', y='pca1', color='label'),
+                  data=df_before.loc[rndperm[:3000], :], ) + geom_point(size=75, alpha=0.8) + ggtitle(
+        "First, Second Principal Components colored by digit {0}".format(name))
+    data.save('C:\\Users\\Jonny\\Desktop\\log\\Visualization\\PCA_{0}.png'.format(name))
+
+    n_sne = 3000
+
+    time_start = time.time()
+    tsne = TSNE(n_components=2, verbose=1, perplexity=90, n_iter=300)
+    tsne_results = tsne.fit_transform(df_before.loc[rndperm[:n_sne], feat_cols].values)
+
+    print('t-SNE done! Time elapsed: {} seconds'.format(time.time() - time_start))
+
+    df_tsne = df_before.loc[rndperm[:n_sne], :].copy()
+    df_tsne['x-tsne'] = tsne_results[:, 0]
+    df_tsne['y-tsne'] = tsne_results[:, 1]
+
+    chart_tsne = ggplot(df_tsne, aes(x='x-tsne', y='y-tsne', color='label')) \
+                 + geom_point(size=75, alpha=0.8) \
+                 + ggtitle("tSNE dimensions colored by digit {0}".format(name))
+    chart_tsne.save('C:\\Users\\Jonny\\Desktop\\log\\Visualization\\TSNE_{0}.png'.format(name))
