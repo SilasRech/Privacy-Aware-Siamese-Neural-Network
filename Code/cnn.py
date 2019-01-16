@@ -40,6 +40,11 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
     y_test = y_test[:, 0]
     y_train = y_train[:, 0]
 
+    average_siamese = []
+    average_gender = []
+    average_speaker = []
+
+
     # Clear Model
     tf.keras.backend.clear_session()
     history = AccuracyHistory()
@@ -56,9 +61,9 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         digits_indeces_test = [np.where(y_test == i)[0] for i in range(2)]
 
         # Create Pairs
-        tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 0.5, 2)
-        eval_pairs, eval_y, eval_y1, eval_y2 = create_pairs_ratio(x_eval, digits_indeces_eval, 0.5, 2)
-        te_pairs, te_y, te_y1, te_y2 = create_pairs_ratio(x_test, digits_indeces_test, 0.5, 2)
+        tr_pairs, tr_y, tr_y1, tr_y2 = create_pairs_ratio(x_train, digits_indeces_train, 0.5, 1)
+        eval_pairs, eval_y, eval_y1, eval_y2 = create_pairs_ratio(x_eval, digits_indeces_eval, 0.5, 1)
+        te_pairs, te_y, te_y1, te_y2 = create_pairs_ratio(x_test, digits_indeces_test, 0.5, 1)
 
         #display_data(x_test, y_test)
 
@@ -82,40 +87,49 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
 
         # Training phase
 
-        for i in range(100):
-            if i == 0:
-                model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy_siamese])
+        #for i in range(100):
+            #if i == 0:
+            #    model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy_siamese])
 
-            else:
-                tf.keras.backend.clear_session()
-                model = keras.models.load_model('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese_test.h5')
+            #else:
+            #    tf.keras.backend.clear_session()
+            #    model = keras.models.load_model('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese_test.h5')
 
-            model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
-                    batch_size=150,
-                    epochs=1,
-                    validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=False)
+            #model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
+            #        batch_size=150,
+            #        epochs=1,
+            #        validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=False)
 
-            model_process = Model(inputs=base_network.get_input_at(0), outputs=base_network.get_layer('max_pooling2d_5').output)
-            x_pred_process = model_process.predict(x_test)
-            display_data(x_pred_process, y_test, '{0}'.format(i))
+        #model_process = Model(inputs=base_network.get_input_at(0), outputs=base_network.get_layer('max_pooling2d_5').output)
+        #model_process = Model(inputs=base_network.get_input_at(0),
+        #                      outputs=base_network.get_layer('dense_6').output)
+        #model_process.summary()
+        #x_pred_process = model_process.predict(x_test)
+        #display_data(x_pred_process, y_test, '{0}'.format(i))
 
-            model.save('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese_test.h5')
+        #model.save('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese_test.h5')
 
+        model.compile(loss=contrastive_loss, optimizer=adam, metrics=[accuracy_siamese])
+        model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y,
+                  batch_size=150,
+                  epochs=75,
+                  validation_data=([eval_pairs[:, 0], eval_pairs[:, 1]], eval_y), shuffle=True)
 
         test_predictions = model.predict([te_pairs[:, 0], te_pairs[:, 1]], verbose=1)
         accuracy_siamese1 = compute_accuracy(te_y, test_predictions)
+        average_siamese.append(accuracy_siamese1)
 
         print('Test accuracy siamese network {0}'.format(accuracy_siamese1))
 
-
         # Save model and define model output as input for DNN part
-        model.save('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese.h5')
+        #model.save('C:\\Users\\Jonny\\Desktop\\log\\Models\\model_siamese.h5')
         model_new = Model(inputs=base_network.get_input_at(0), outputs=base_network.get_layer('max_pooling2d_5').output)
 
         # Predict the new inputs
         x_pred_train = model_new.predict(x_train)
         x_pred_eval = model_new.predict(x_eval)
         x_pred_test = model_new.predict(x_test)
+
 
         #display_data(x_pred_test, y_test)
         # Hot encode labels
@@ -125,7 +139,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         y_test = keras.utils.to_categorical(y_test, classes)
 
         # Build and train the DNN for gender discrimination
-        input_new = (1, 1, 512)
+        input_new = (1, 1,   512)
         model_dense = Sequential()
         model_dense.add(Flatten(input_shape=input_new))
         model_dense.add(Dense(1024, activation='relu'))
@@ -149,7 +163,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
         else:
             acc_gender = acc[1]
         print('test accuracy gender discrimination {0} %'.format(acc_gender))
-
+        average_gender.append(acc_gender)
         # Build DNN for speaker identification
         classes = number_speaker
 
@@ -166,7 +180,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
 
         # Train DNN for speaker identification
         accuracy_speaker = []
-        for k in range(int(400/number_speaker)):
+        for k in range(int(420/number_speaker)):
             print('------------Speaker Batch Iteration {0}-------------'.format(k+1))
 
             retest_label_one = y_retest[k]
@@ -177,9 +191,9 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
                 retest_label_one_true = retest_label_one[:, 0]
                 retrain_label_one_true = retrain_labels_one[:, 0]
             else:
-                y_retest_utt = retest_label_one
-                retest_label_one_true = retest_label_one
-                retrain_label_one_true = retrain_labels_one
+                y_retest_utt = retest_label_one[:, 1]
+                retest_label_one_true = retest_label_one[:, 0]
+                retrain_label_one_true = retrain_labels_one[:, 0]
 
             y_retest_one = keras.utils.to_categorical(retest_label_one_true % classes, classes)
             y_retrain_one = keras.utils.to_categorical(retrain_label_one_true % classes, classes)
@@ -187,24 +201,26 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
             x_input_train = model_new.predict(x_retrain[k])
             x_input_eval = model_new.predict(x_retest[k])
 
-            display_data(x_retest[k], retest_label_one_true)
-            display_data(x_input_eval, retest_label_one_true)
+            #display_data(x_retest[k], retest_label_one_true)
+            #display_data(x_input_eval, retest_label_one_true)
 
             reset_weights(model_dense_speaker)
             model_dense_speaker.fit(x=x_input_train, y=y_retrain_one, shuffle=True, epochs=150,
                                     batch_size=90,
                                     validation_data=(x_input_eval, y_retest_one), callbacks=[tensor_board, history])
 
-            if not utterance:
-                accuracy_1 = list(history.acc)
-                accuracy_speaker.append(accuracy_1[-1])
-
-            else:
+            if utterance:
                 pred_speaker = model_dense_speaker.predict(x_input_eval)
                 utterance_acc = utterance_accuracy(pred_speaker, y_retest_one, y_retest_utt)
                 accuracy_speaker.append(utterance_acc)
 
+            else:
+                accuracy_1 = list(history.acc)
+                accuracy_speaker.append(accuracy_1[-1])
+
         acc_speaker = np.mean(accuracy_speaker)
+
+        average_speaker.append(acc_speaker)
 
     else:
         # So row 0 are the males, and row 1 are the females
@@ -342,7 +358,7 @@ def neural_network(x_eval, y_eval, x_train, y_train, loss, x_test, y_test, x_ret
                 accuracy_speaker.append(utterance_acc)
 
             acc_speaker = np.mean(accuracy_speaker)
-    return acc_speaker, acc_gender, accuracy_siamese
+        return acc_speaker, acc_gender, accuracy_siamese
 
 
 def utterance_accuracy(y_pred, y_true, y_utt):
@@ -395,7 +411,7 @@ def utterance_accuracy(y_pred, y_true, y_utt):
 def reshape_speaker(data):
     reshaped = []
     for i in range(len(data)):
-        data_one = np.reshape(data[i][:], (1, 8192))
+        data_one = np.reshape(data[i][:], (1, 131072))
         reshaped.append(data_one)
 
     reshaped = np.asarray(reshaped)
@@ -406,7 +422,7 @@ def reshape_speaker(data):
 def reshape_gender(data):
     reshaped = []
     for i in range(len(data)):
-        data_one = np.reshape(data[i][:], (1, 8192))
+        data_one = np.reshape(data[i][:], (1, 131072))
         reshaped.append(data_one)
 
     reshaped = np.asarray(reshaped)
@@ -475,7 +491,7 @@ def create_pairs_ratio(x, digit_indices, ratio, times):
     """
     :param x: input data
     :param digits_indices: labeled data
-    :param ratio: ratio for similiar pairs in percentage
+    :param ratio: ratio for similar pairs in percentage
     :param times: total number of times the data is repeatedly chosen
     :return: pairs, new labels
     """
@@ -543,6 +559,28 @@ def create_pairs_ratio(x, digit_indices, ratio, times):
 
     return np.array(pairs_return), np.array(labels), np.array(new_labels_1), np.array(new_labels_2)
 
+def create_dense_network_try(input_shape):
+    '''Base network to be shared (eq. to feature extraction).
+    '''
+    input = Input(shape=input_shape)
+
+    x = BatchNormalization()(input)
+    x = Flatten()(x)
+    x = Dense(1024, activation='relu')(x)
+    #x = Dropout(0.1)(x)
+    x = Dense(1024, activation='relu')(x)
+    #x = Dropout(0.1)(x)
+    x = Dense(1024, activation='relu')(x)
+    #x = Dropout(0.1)(x)
+    x = Dense(1024, activation='relu')(x)
+    x = Dropout(0.1)(x)
+    x = Dense(1024, activation='relu')(x)
+    x = Dropout(0.1)(x)
+    x = Dense(512, activation='relu')(x)
+    #x = Dropout(0.1)(x)
+
+    return Model(input, x)
+
 
 def create_base_network(input_shape):
     '''Base network to be shared (eq. to feature extraction).
@@ -560,27 +598,28 @@ def create_base_network(input_shape):
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    # x = Dropout(0.1)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(256, kernel_size=(3, 3), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.1)(x)
+    #x = Dropout(0.1)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.1)(x)
+    #x = Dropout(0.1)(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-    x = Dropout(0.1)(x)
+
 
     x = Flatten()(x)
 
@@ -624,6 +663,7 @@ def create_whole_network(input_shape):
     x = Conv2D(512, kernel_size=(2, 2), activation='relu', strides=(1, 1), padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = Dropout(0.25)(x)
+    x = Flatten()(x)
 
     return Model(input, x)
 
@@ -659,7 +699,7 @@ def accuracy_triple(y_true, y_pred):
 
 
 def contrastive_loss(y_true, y_pred):
-    margin = float(3)
+    margin = float(1)
     return K.mean(y_true * K.square(y_pred) + (1 - y_true) * K.square(K.maximum(float(0), margin - y_pred)))
 
 
