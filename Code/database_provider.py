@@ -7,6 +7,7 @@ from parameter import parameters
 from feature_extraction import feature_extraction
 db_df = parameters('database')
 features = db_df.iloc[0]['features']
+path = db_df.iloc[0]['path_features']
 
 number_speakers = db_df.iloc[0]['number_speakers']
 
@@ -32,7 +33,7 @@ def database(mode, saved, type):
     retrain_con = pd.DataFrame()
     test = pd.DataFrame()
 
-    meta = pd.read_json(db_df.iloc[0]['meta'], orient='split')
+    meta = pd.read_json('Databases\\meta.json', orient='split')
 
     female = meta.loc[meta['gender'] == 'f']
     male = meta.loc[meta['gender'] == 'm']
@@ -97,15 +98,15 @@ def database(mode, saved, type):
             eval_con.reset_index()
             training1.reset_index()
 
-            with open(db_df.iloc[0]['training'], 'w') as fs:
+            with open(path.format('training'), 'w') as fs:
                 df_json = training1.to_json(orient='split')
                 fs.write(df_json)
-            with open(db_df.iloc[0]['eval'], 'w') as f:
+            with open(path.format('eval'), 'w') as f:
                 df_json = eval_con.to_json(orient='split')
                 f.write(df_json)
         else:
-            training1 = pd.read_json(db_df.iloc[0]['training'], orient='split')
-            eval_con = pd.read_json(db_df.iloc[0]['eval'], orient='split')
+            training1 = pd.read_json(path.format('training'), orient='split')
+            eval_con = pd.read_json(path.format('eval'), orient='split')
 
         if type == 'gender':
 
@@ -202,7 +203,7 @@ def database(mode, saved, type):
                     print(m)
                     test = pd.concat([test, testing], sort=False)
 
-                with open(db_df.iloc[0]['testing'], 'w') as fs:
+                with open(path.format('testing'), 'w') as fs:
                     df_json = test.to_json(orient='split')
                     fs.write(df_json)
 
@@ -217,22 +218,22 @@ def database(mode, saved, type):
                     retrain_con = pd.concat([retrain_con, retrain])
                     retest_con = pd.concat([retest_con, retest])
 
-                with open(db_df.iloc[0]['retesting'], 'w') as fs:
+                with open(path.format('retesting'), 'w') as fs:
                     df_json = retest_con.to_json(orient='split')
                     fs.write(df_json)
 
-                with open(db_df.iloc[0]['retraining'], 'w') as fs:
+                with open(path.format('retraining'), 'w') as fs:
                     df_json =retrain_con.to_json(orient='split')
                     fs.write(df_json)
             else:
                 raise ValueError('Neural Network Label not specified')
 
         if type == 'gender':
-            testing = pd.read_json(db_df.iloc[0]['testing'], orient='split')
+            testing = pd.read_json(path.format('testing'), orient='split')
 
         elif type == 'speaker':
-            retesting = pd.read_json(db_df.iloc[0]['retesting'], orient='split')
-            retraining = pd.read_json(db_df.iloc[0]['retraining'], orient='split')
+            retesting = pd.read_json(path.format('retesting'), orient='split')
+            retraining = pd.read_json(path.format('retraining'), orient='split')
 
         else:
             print("Network Label not specified")
