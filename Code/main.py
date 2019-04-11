@@ -1,7 +1,7 @@
-#from NeuralNetworkSetup import neural_network
 from database_provider import database
 from parameter import parameters
 import numpy as np
+from NeuralNetworkSetup import neural_network
 
 #
 # Important Run GetWAVToPythonFile before main one time for initialisation
@@ -52,6 +52,6 @@ else:
     retrain_labels = np.load(path_features.format('retrain_labels.npy'))
 
 # Loss either ='Sequential' or 'Triple'
-#scores, accuracy = neural_network(x_eval=eval_data, y_eval=eval_labels, x_train=train_data, y_train=train_labels, loss='Sequential',
-#                        x_test=test_data, y_test=test_labels, y_retest=retest_labels, y_retrain=retrain_labels ,x_retrain=retrain_data, x_retest=retest_data, utterance=False)
+scores, accuracy = neural_network(x_eval=eval_data, y_eval=eval_labels, x_train=train_data, y_train=train_labels, loss='Sequential',
+                        x_test=test_data, y_test=test_labels, y_retest=retest_labels, y_retrain=retrain_labels ,x_retrain=retrain_data, x_retest=retest_data, utterance=False)
 
