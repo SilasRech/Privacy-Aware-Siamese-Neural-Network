@@ -3,6 +3,7 @@ import ijson
 from scipy.io import wavfile
 import pandas as pd
 import numpy as np
+from parameter import parameters
 
 len_files = 0
 k = 0
@@ -12,8 +13,9 @@ df_meta_list = []
 # Path to Timit Audio Files (EDIT) Origin
 p = Path('C:\\Users\\silas\\Desktop\\Neuer Ordner\\timit_16kHz_wav\\train')
 
-# Path to new normalized audio data (EDIT) Destination
-audio_file_name_str = "C:\\Users\\silas\\Desktop\\Neuer Ordner\\NewAudioFiles\\audio_file{0}.json"
+# Path to new normalized audio data Destination
+db_df = parameters('database')
+audio_file_name_str = db_df.iloc[0]['audiofile']
 
 with open('Databases\\database.json', 'r') as f:
     objects = ijson.items(f, 'data.item')

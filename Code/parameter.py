@@ -25,7 +25,7 @@ def parameters(mode):
     #####################################################
 
 
-    # Path to normalized audiofiles from GetWavToPython (EDIT) Origin
+    # Path to normalized audiofiles from GetWavToPython (EDIT) Destination
     filename_audiofile = "C:\\Users\\silas\\Desktop\\Neuer Ordner\\audio_files\\audio_file{0}.json"
 
     # Path to Extracted Features (EDIT) Destination 1 (MFCC/LMBE Features)
@@ -33,7 +33,6 @@ def parameters(mode):
     path_feature_database = "C:\\Users\\silas\\Desktop\\Neuer Ordner\\FeaturesForDatabase\\{0}.json"
 
     # Paths For Neural Network (EDIT) Destination 2 (Final Features)
-    path_tensorboard = 'C:\\Users\\jonny\\desktop\\log\\Tensorboard\\Graph{0}'
     path_features = 'C:\\Users\\silas\\Desktop\\Neuer Ordner\\InputData\\{0}.json'
 
     # Choose Gender or Speaker // 0 = Gender // 1 = Speaker
